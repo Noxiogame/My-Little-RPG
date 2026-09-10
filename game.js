@@ -53,12 +53,15 @@ const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((n
 
 function createSprite(character, direction, frame) {
   const image = new Image();
-  image.src = `${character === 'spamton' ? 'Spamton' : 'Noelle'}/${character}_${direction}${frame}.png`;
+  const folder = character === 'spamton' ? 'Spamton' : character === 'noelle-alt' ? 'Noelle/Alt' : 'Noelle';
+  const prefix = character === 'noelle-alt' ? 'noelle_alt' : character;
+  image.src = `${folder}/${prefix}_${direction}${frame}.png`;
   return image;
 }
 
 const characterSprites = {
   noelle: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle', direction, frame))])),
+  'noelle-alt': Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle-alt', direction, frame))])),
   spamton: {
     down: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
     left: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'left', frame)),
@@ -84,7 +87,7 @@ const eggState = { hits: 0, open: false, broken: false, cooldownUntil: session.c
 function loadSession() {
   try {
     const saved = JSON.parse(localStorage.getItem(sessionStorageKey) || '{}');
-    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: saved.character === 'spamton' ? 'spamton' : 'noelle' };
+    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ['noelle', 'noelle-alt', 'spamton'].includes(saved.character) ? saved.character : 'noelle' };
   } catch {
     return { coins: 0, cooldownUntil: 0, character: 'noelle' };
   }
@@ -498,8 +501,11 @@ function sendChatMessage(event) {
 }
 
 function switchCharacter() {
-  localPlayer.character = localPlayer.character === 'noelle' ? 'spamton' : 'noelle';
-  characterSwitch.firstChild.textContent = localPlayer.character === 'noelle' ? 'Noelle ' : 'Spamton ';
+  const characters = ['noelle', 'noelle-alt', 'spamton'];
+  const labels = { noelle: 'Noelle', 'noelle-alt': 'Noelle Alt', spamton: 'Spamton' };
+  const nextIndex = (characters.indexOf(localPlayer.character) + 1) % characters.length;
+  localPlayer.character = characters[nextIndex];
+  characterSwitch.firstChild.textContent = `${labels[localPlayer.character]} `;
   localPlayer.speech = '';
   localPlayer.speechUntil = 0;
   saveSession();
@@ -628,5 +634,5 @@ eggImage.addEventListener('keydown', (event) => {
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
-characterSwitch.firstChild.textContent = localPlayer.character === 'noelle' ? 'Noelle ' : 'Spamton ';
+characterSwitch.firstChild.textContent = { noelle: 'Noelle ', 'noelle-alt': 'Noelle Alt ', spamton: 'Spamton ' }[localPlayer.character];
 resize(); renderPlayers(); updateRewardUi(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);

@@ -53,8 +53,16 @@ const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((n
 
 function createSprite(character, direction, frame) {
   const image = new Image();
-  const folder = character === 'spamton' ? 'Spamton' : character === 'noelle-alt' ? 'Noelle/Alt' : 'Noelle';
-  const prefix = character === 'noelle-alt' ? 'noelle_alt' : character;
+  const skinPaths = {
+    noelle: { folder: 'Noelle', prefix: 'noelle' },
+    'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
+    spamton: { folder: 'Spamton', prefix: 'spamton' },
+    temmie: { folder: 'Temmie', prefix: 'temmie' },
+    asgore: { folder: 'Asgore', prefix: 'asgore' },
+  };
+  const skin = skinPaths[character] || skinPaths.noelle;
+  const folder = skin.folder;
+  const prefix = skin.prefix;
   image.src = `${folder}/${prefix}_${direction}${frame}.png`;
   return image;
 }
@@ -62,6 +70,8 @@ function createSprite(character, direction, frame) {
 const characterSprites = {
   noelle: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle', direction, frame))])),
   'noelle-alt': Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle-alt', direction, frame))])),
+  temmie: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('temmie', direction, frame))])),
+  asgore: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('asgore', direction, frame))])),
   spamton: {
     down: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
     left: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'left', frame)),
@@ -87,7 +97,7 @@ const eggState = { hits: 0, open: false, broken: false, cooldownUntil: session.c
 function loadSession() {
   try {
     const saved = JSON.parse(localStorage.getItem(sessionStorageKey) || '{}');
-    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ['noelle', 'noelle-alt', 'spamton'].includes(saved.character) ? saved.character : 'noelle' };
+    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ['noelle', 'noelle-alt', 'spamton', 'temmie', 'asgore'].includes(saved.character) ? saved.character : 'noelle' };
   } catch {
     return { coins: 0, cooldownUntil: 0, character: 'noelle' };
   }
@@ -501,8 +511,8 @@ function sendChatMessage(event) {
 }
 
 function switchCharacter() {
-  const characters = ['noelle', 'noelle-alt', 'spamton'];
-  const labels = { noelle: 'Noelle', 'noelle-alt': 'Noelle Alt', spamton: 'Spamton' };
+  const characters = ['noelle', 'noelle-alt', 'spamton', 'temmie', 'asgore'];
+  const labels = { noelle: 'Noelle', 'noelle-alt': 'Noelle Alt', spamton: 'Spamton', temmie: 'Temmie', asgore: 'Asgore' };
   const nextIndex = (characters.indexOf(localPlayer.character) + 1) % characters.length;
   localPlayer.character = characters[nextIndex];
   characterSwitch.firstChild.textContent = `${labels[localPlayer.character]} `;
@@ -634,5 +644,5 @@ eggImage.addEventListener('keydown', (event) => {
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
-characterSwitch.firstChild.textContent = { noelle: 'Noelle ', 'noelle-alt': 'Noelle Alt ', spamton: 'Spamton ' }[localPlayer.character];
+characterSwitch.firstChild.textContent = { noelle: 'Noelle ', 'noelle-alt': 'Noelle Alt ', spamton: 'Spamton ', temmie: 'Temmie ', asgore: 'Asgore ' }[localPlayer.character];
 resize(); renderPlayers(); updateRewardUi(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);

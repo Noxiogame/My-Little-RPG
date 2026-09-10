@@ -372,7 +372,7 @@ function update(delta) {
   const moving = Math.hypot(vector.x, vector.y) > .08;
   localPlayer.moving = moving;
   if (moving) {
-    const speed = .18 / viewport.width;
+    const speed = .1 / viewport.width;
     localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * delta * speed));
     localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * delta * speed));
     if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
@@ -392,7 +392,17 @@ function frame(now) {
 }
 
 function sendState() {
-  const payload = { type: 'state', player: { ...localPlayer } };
+  const payload = {
+    type: 'state',
+    player: {
+      id: localPlayer.id,
+      x: localPlayer.x,
+      y: localPlayer.y,
+      direction: localPlayer.direction,
+      moving: localPlayer.moving,
+      character: localPlayer.character,
+    },
+  };
   if (isHost) broadcast(payload);
   else if (hostConnection?.open) hostConnection.send(payload);
 }
@@ -449,6 +459,8 @@ function receive(connection, payload) {
     const previous = remotePlayers.get(payload.player.id);
     const player = {
       ...payload.player,
+      speech: previous?.speech || '',
+      speechUntil: previous?.speechUntil || 0,
       x: previous?.x ?? payload.player.x,
       y: previous?.y ?? payload.player.y,
       targetX: payload.player.x,

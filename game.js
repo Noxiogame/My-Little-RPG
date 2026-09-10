@@ -32,8 +32,8 @@ const characterSprites = {
   spamton: {
     down: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
     left: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'left', frame)),
-    right: [1, 1, 1, 1].map((frame) => createSprite('spamton', 'right', frame)),
-    up: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
+    right: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'right', frame)),
+    up: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'up', frame)),
   },
 };
 

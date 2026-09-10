@@ -23,7 +23,7 @@ const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((n
 
 function createSprite(character, direction, frame) {
   const image = new Image();
-  image.src = `${character === 'spamton' ? 'spamton' : 'Noelle'}/${character}_${direction}${frame}.png`;
+  image.src = `${character === 'spamton' ? 'Spamton' : 'Noelle'}/${character}_${direction}${frame}.png`;
   return image;
 }
 
@@ -102,7 +102,7 @@ function drawPlayer(player, isLocal = false) {
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete) context.drawImage(image, x - width / 2, y - height, width, height);
+  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height, width, height);
   if (isLocal) { context.fillStyle = '#b9e7b1'; context.beginPath(); context.arc(x, y - height * 1.08, 3, 0, Math.PI * 2); context.fill(); }
   context.restore();
   drawSpeechBubble(player, x, y - height * 1.08);

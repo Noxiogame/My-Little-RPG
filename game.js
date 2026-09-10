@@ -21,6 +21,8 @@ const eggProgress = document.querySelector('#egg-progress');
 const eggResult = document.querySelector('#egg-result');
 const coinAmount = document.querySelector('#coin-amount');
 const TILE_SIZE = 20;
+const WORLD_SCALE = 3;
+const CAMERA_ZOOM = 1.35;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
 const tileTextures = { grass: {}, road: {} };
@@ -219,10 +221,12 @@ let lastTime = performance.now();
 let animationTime = 0;
 let viewport = { width: 0, height: 0, dpr: 1 };
 let worldMap = [];
+let worldSize = { width: 0, height: 0 };
 
 function createWorldMap() {
-  const columns = Math.ceil(viewport.width / TILE_SIZE) + 1;
-  const rows = Math.ceil(viewport.height / TILE_SIZE) + 1;
+  worldSize = { width: viewport.width * WORLD_SCALE, height: viewport.height * WORLD_SCALE };
+  const columns = Math.ceil(worldSize.width / TILE_SIZE) + 1;
+  const rows = Math.ceil(worldSize.height / TILE_SIZE) + 1;
   const map = Array.from({ length: rows }, () => Array(columns).fill('grass'));
   let center = Math.floor(rows * .68);
   for (let column = 0; column < columns; column += 1) {
@@ -283,11 +287,24 @@ function setStatus(text, state = 'solo') {
 function drawWorld() {
   const { width, height } = viewport;
   context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
+  const cameraX = localPlayer.x * worldSize.width;
+  const cameraY = localPlayer.y * worldSize.height;
+  context.save();
+  context.translate(width / 2 - cameraX * CAMERA_ZOOM, height / 2 - cameraY * CAMERA_ZOOM);
+  context.scale(CAMERA_ZOOM, CAMERA_ZOOM);
   worldMap.forEach((row, rowIndex) => row.forEach((type, columnIndex) => drawTile(type, columnIndex, rowIndex)));
   context.fillStyle = 'rgba(255, 214, 145, .25)';
-  context.beginPath(); context.arc(width * .78, height * .2, 38, 0, Math.PI * 2); context.fill();
-  context.fillStyle = '#f5c884'; context.beginPath(); context.arc(width * .78, height * .2, 22, 0, Math.PI * 2); context.fill();
+  context.beginPath(); context.arc(worldSize.width * .78, worldSize.height * .2, 38, 0, Math.PI * 2); context.fill();
+  context.fillStyle = '#f5c884'; context.beginPath(); context.arc(worldSize.width * .78, worldSize.height * .2, 22, 0, Math.PI * 2); context.fill();
+  context.restore();
   context.fillStyle = 'rgba(247,241,222,.3)'; context.font = '11px DM Mono, monospace'; context.fillText('MEADOW 01', 30, height - 30);
+}
+
+function worldToScreen(x, y) {
+  return {
+    x: viewport.width / 2 + (x * worldSize.width - localPlayer.x * worldSize.width) * CAMERA_ZOOM,
+    y: viewport.height / 2 + (y * worldSize.height - localPlayer.y * worldSize.height) * CAMERA_ZOOM,
+  };
 }
 
 function drawPlayer(player, isLocal = false) {
@@ -297,10 +314,11 @@ function drawPlayer(player, isLocal = false) {
   const image = imageFrames[frame];
   const pixelWidth = image.naturalWidth || 23;
   const pixelHeight = image.naturalHeight || 47;
-  const width = pixelWidth;
-  const height = pixelHeight;
-  const x = player.x * viewport.width;
-  const y = player.y * viewport.height;
+  const width = pixelWidth * CAMERA_ZOOM;
+  const height = pixelHeight * CAMERA_ZOOM;
+  const position = worldToScreen(player.x, player.y);
+  const x = position.x;
+  const y = position.y;
   context.save();
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
@@ -405,9 +423,10 @@ function syncSpeechBubbles(players) {
     }
     bubble.querySelector('.speech-bubble-text').textContent = player.speech;
     buildHorizontalEdges(bubble);
-    bubble.style.left = `${player.x * viewport.width}px`;
-    const bubbleHeight = characterSprites[player.character]?.[player.direction]?.[0]?.naturalHeight || 47;
-    bubble.style.top = `${player.y * viewport.height - bubbleHeight - 13}px`;
+    const position = worldToScreen(player.x, player.y);
+    bubble.style.left = `${position.x}px`;
+    const bubbleHeight = (characterSprites[player.character]?.[player.direction]?.[0]?.naturalHeight || 47) * CAMERA_ZOOM;
+    bubble.style.top = `${position.y - bubbleHeight - 13}px`;
   });
   speechElements.forEach((bubble, id) => {
     if (!activeIds.has(id)) { bubble.remove(); speechElements.delete(id); }
@@ -444,7 +463,7 @@ function update(delta) {
   const moving = Math.hypot(vector.x, vector.y) > .08;
   localPlayer.moving = moving;
   if (moving) {
-    const speed = .1 / viewport.width;
+    const speed = .1 / worldSize.width;
     localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * delta * speed));
     localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * delta * speed));
     if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';

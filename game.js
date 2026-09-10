@@ -295,10 +295,10 @@ function drawPlayer(player, isLocal = false) {
   const imageFrames = selectedSprites[player.direction] || selectedSprites.down;
   const frame = player.moving ? Math.floor(animationTime / 120) % 4 : 0;
   const image = imageFrames[frame];
-  const height = Math.max(64, Math.min(94, viewport.width * .075));
-  const width = image.naturalWidth && image.naturalHeight
-    ? height * image.naturalWidth / image.naturalHeight
-    : height * 23 / 47;
+  const pixelWidth = image.naturalWidth || 23;
+  const pixelHeight = image.naturalHeight || 47;
+  const width = pixelWidth;
+  const height = pixelHeight;
   const x = player.x * viewport.width;
   const y = player.y * viewport.height;
   context.save();
@@ -306,9 +306,9 @@ function drawPlayer(player, isLocal = false) {
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
   if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height, width, height);
-  if (isLocal) { context.fillStyle = '#b9e7b1'; context.beginPath(); context.arc(x, y - height * 1.08, 3, 0, Math.PI * 2); context.fill(); }
+  if (isLocal) { context.fillStyle = '#b9e7b1'; context.beginPath(); context.arc(x, y - height - 5, 3, 0, Math.PI * 2); context.fill(); }
   context.restore();
-  drawSpeechBubble(player, x, y - height * 1.08);
+  drawSpeechBubble(player, x, y - height - 5);
 }
 
 function drawSpeechBubble(player, anchorX, anchorY) {
@@ -406,7 +406,8 @@ function syncSpeechBubbles(players) {
     bubble.querySelector('.speech-bubble-text').textContent = player.speech;
     buildHorizontalEdges(bubble);
     bubble.style.left = `${player.x * viewport.width}px`;
-    bubble.style.top = `${player.y * viewport.height - Math.max(64, Math.min(94, viewport.width * .075)) * 1.16 - 8}px`;
+    const bubbleHeight = characterSprites[player.character]?.[player.direction]?.[0]?.naturalHeight || 47;
+    bubble.style.top = `${player.y * viewport.height - bubbleHeight - 13}px`;
   });
   speechElements.forEach((bubble, id) => {
     if (!activeIds.has(id)) { bubble.remove(); speechElements.delete(id); }

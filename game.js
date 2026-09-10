@@ -23,6 +23,7 @@ const coinAmount = document.querySelector('#coin-amount');
 const TILE_SIZE = 20;
 const WORLD_SCALE = 3;
 const CAMERA_ZOOM = 1.35;
+const PLAYER_SPEED = 100;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
 const tileTextures = { grass: {}, road: {} };
@@ -463,9 +464,9 @@ function update(delta) {
   const moving = Math.hypot(vector.x, vector.y) > .08;
   localPlayer.moving = moving;
   if (moving) {
-    const speed = .1 / worldSize.width;
-    localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * delta * speed));
-    localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * delta * speed));
+    const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
+    localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
+    localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height));
     if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
     else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
   }

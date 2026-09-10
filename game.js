@@ -1,8 +1,6 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const roomInput = document.querySelector('#room');
-const connectButton = document.querySelector('#connect');
 const status = document.querySelector('#status');
 const statusText = document.querySelector('#status-text');
 const playersElement = document.querySelector('#players');
@@ -14,6 +12,37 @@ const chatForm = document.querySelector('#chat-form');
 const chatInput = document.querySelector('#chat-input');
 const speechBubbles = document.querySelector('#speech-bubbles');
 const characterSwitch = document.querySelector('#character-switch');
+const eggReward = document.querySelector('#egg-reward');
+const eggModal = document.querySelector('#egg-modal');
+const eggClose = document.querySelector('#egg-close');
+const eggImage = document.querySelector('#egg-image');
+const eggShard = document.querySelector('#egg-shard');
+const eggProgress = document.querySelector('#egg-progress');
+const eggResult = document.querySelector('#egg-result');
+const TILE_SIZE = 20;
+const ROOM_ID = 'prairie';
+const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
+const tileTextures = { grass: {}, road: {} };
+
+function loadTileTexture(type, mask, variation = '') {
+  const image = new Image();
+  const separator = type === 'grass' ? '_' : '';
+  image.src = `Tilesets/${type === 'grass' ? 'Grass' : 'Road'}/${type}${separator}${mask}${variation}.png`;
+  image.addEventListener('load', () => requestAnimationFrame(draw));
+  return image;
+}
+
+TILE_TEXTURE_NAMES.forEach((mask) => {
+  ['grass', 'road'].forEach((type) => {
+    tileTextures[type][mask] = [loadTileTexture(type, mask)];
+    for (let variation = 1; variation <= 8; variation += 1) {
+      tileTextures[type][mask].push(loadTileTexture(type, mask, `_${variation}`));
+    }
+  });
+});
+const roadFallback = new Image();
+roadFallback.src = 'Tilesets/Road/road.png';
+roadFallback.addEventListener('load', () => requestAnimationFrame(draw));
 const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((name) => {
   const image = new Image();
   image.src = `Noelle/talkbox_ui_${name}.png`;
@@ -37,6 +66,75 @@ const characterSprites = {
   },
 };
 
+const eggTextures = {
+  stages: ['Tilesets/pipis.png', 'Tilesets/pipis_break1.png', 'Tilesets/pipis_break2.png', 'Tilesets/pipis_break3.png'],
+  broken: 'Tilesets/pipis_broken.png',
+  left: 'Tilesets/pipis_broken_left.png',
+  right: 'Tilesets/pipis_broken_right.png',
+  shards: ['Tilesets/pipis_shard1.png', 'Tilesets/pipis_shard2.png', 'Tilesets/pipis_shard3.png'],
+};
+const eggRarities = ['Commune', 'Inhabituelle', 'Rare', 'Légendaire'];
+const eggBreakChance = .2;
+const eggState = { hits: 0, open: false, broken: false, shardTimer: null };
+
+function setEggStage(stage) {
+  eggImage.src = eggTextures.stages[stage];
+  eggImage.alt = `Oeuf, phase ${stage + 1}`;
+  eggShard.hidden = true;
+  eggProgress.textContent = `${eggState.hits} / 12 frappes`;
+}
+
+function openEgg() {
+  eggState.open = true;
+  eggModal.hidden = false;
+  eggResult.textContent = '';
+  eggImage.setAttribute('aria-disabled', eggState.broken ? 'true' : 'false');
+  eggClose.focus();
+}
+
+function closeEgg() {
+  eggState.open = false;
+  eggModal.hidden = true;
+}
+
+function showEggShard(stage) {
+  eggShard.src = eggTextures.shards[stage - 1];
+  eggShard.className = 'egg-shard';
+  eggShard.hidden = false;
+  requestAnimationFrame(() => eggShard.classList.add('is-visible'));
+  clearTimeout(eggState.shardTimer);
+  eggState.shardTimer = setTimeout(() => { eggShard.hidden = true; }, 900);
+}
+
+function breakEgg() {
+  eggState.broken = true;
+  eggImage.src = eggTextures.broken;
+  eggImage.alt = 'Oeuf brisé';
+  eggImage.setAttribute('aria-disabled', 'true');
+  eggResult.textContent = `Rareté obtenue : ${eggRarities[Math.min(3, Math.floor(eggState.hits / 3))]}`;
+  setTimeout(() => {
+    if (!eggState.open) return;
+    eggImage.src = eggTextures.left;
+    eggImage.alt = 'Moitié gauche de l’oeuf brisé';
+    eggShard.src = eggTextures.right;
+    eggShard.alt = 'Moitié droite de l’oeuf brisé';
+    eggShard.hidden = false;
+    eggShard.className = 'egg-shard is-visible egg-half-right';
+  }, 420);
+}
+
+function hitEgg() {
+  if (eggState.broken) return;
+  eggImage.classList.remove('egg-impact');
+  void eggImage.offsetWidth;
+  eggImage.classList.add('egg-impact');
+  eggState.hits += 1;
+  const stage = Math.min(3, Math.floor(eggState.hits / 3));
+  setEggStage(stage);
+  if (eggState.hits % 3 === 0 && stage > 0) showEggShard(stage);
+  if (Math.random() < eggBreakChance || eggState.hits === 12) breakEgg();
+}
+
 const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: 'noelle' };
 const remotePlayers = new Map();
 const speechElements = new Map();
@@ -49,6 +147,53 @@ let isHost = false;
 let lastTime = performance.now();
 let animationTime = 0;
 let viewport = { width: 0, height: 0, dpr: 1 };
+let worldMap = [];
+
+function createWorldMap() {
+  const columns = Math.ceil(viewport.width / TILE_SIZE) + 1;
+  const rows = Math.ceil(viewport.height / TILE_SIZE) + 1;
+  const map = Array.from({ length: rows }, () => Array(columns).fill('grass'));
+  let center = Math.floor(rows * .68);
+  for (let column = 0; column < columns; column += 1) {
+    center = Math.max(3, Math.min(rows - 4, center + (column % 9 === 0 ? (column % 18 === 0 ? -1 : 1) : 0)));
+    for (let offset = -1; offset <= 1; offset += 1) map[center + offset][column] = 'road';
+  }
+  worldMap = map;
+}
+
+function tileMask(column, row, type) {
+  const same = (offsetColumn, offsetRow) => worldMap[row + offsetRow]?.[column + offsetColumn] === type;
+  return `${same(0, -1) ? 1 : 0}${same(1, 0) ? 1 : 0}${same(0, 1) ? 1 : 0}${same(-1, 0) ? 1 : 0}`;
+}
+
+function closestTexture(type, mask) {
+  const available = TILE_TEXTURE_NAMES.reduce((best, candidate) => {
+    const distance = candidate.split('').reduce((total, bit, index) => total + (bit !== mask[index] ? 1 : 0), 0);
+    return distance < best.distance ? { mask: candidate, distance } : best;
+  }, { mask: '1111', distance: Number.POSITIVE_INFINITY });
+  return tileTextures[type][available.mask];
+}
+
+function tileRandom(column, row, type, mask) {
+  let hash = (column * 374761393 + row * 668265263 + (type === 'road' ? 1442695041 : 1013904223) + Number.parseInt(mask, 2) * 2246822519) >>> 0;
+  hash = Math.imul(hash ^ (hash >>> 13), 1274126177) >>> 0;
+  return (hash ^ (hash >>> 16)) >>> 0;
+}
+
+function drawTile(type, column, row) {
+  const mask = tileMask(column, row, type);
+  const textures = tileTextures[type][mask] || closestTexture(type, mask);
+  const availableTextures = textures.filter((image) => image.complete && image.naturalWidth > 0);
+  const image = availableTextures[tileRandom(column, row, type, mask) % availableTextures.length];
+  const x = column * TILE_SIZE;
+  const y = row * TILE_SIZE;
+  if (image) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE);
+  else if (type === 'road' && roadFallback.complete && roadFallback.naturalWidth > 0) context.drawImage(roadFallback, x, y, TILE_SIZE, TILE_SIZE);
+  else {
+    context.fillStyle = type === 'road' ? '#6e4f86' : '#315951';
+    context.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+  }
+}
 
 function resize() {
   viewport = { width: window.innerWidth, height: window.innerHeight, dpr: Math.min(window.devicePixelRatio || 1, 2) };
@@ -56,6 +201,7 @@ function resize() {
   canvas.height = viewport.height * viewport.dpr;
   context.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
   context.imageSmoothingEnabled = false;
+  createWorldMap();
 }
 
 function setStatus(text, state = 'solo') {
@@ -65,22 +211,8 @@ function setStatus(text, state = 'solo') {
 
 function drawWorld() {
   const { width, height } = viewport;
-  context.fillStyle = '#315951';
-  context.fillRect(0, 0, width, height);
-  context.fillStyle = '#3d685b';
-  context.fillRect(0, height * .52, width, height * .48);
-  context.fillStyle = 'rgba(185, 231, 177, .08)';
-  for (let x = -20; x < width + 50; x += 42) {
-    for (let y = height * .54; y < height; y += 35) {
-      context.fillRect(x + ((y / 35) % 2) * 12, y, 2, 2);
-    }
-  }
-  context.fillStyle = '#244840';
-  context.beginPath();
-  context.moveTo(0, height * .52);
-  context.quadraticCurveTo(width * .2, height * .43, width * .43, height * .51);
-  context.quadraticCurveTo(width * .7, height * .62, width, height * .46);
-  context.lineTo(width, 0); context.lineTo(0, 0); context.fill();
+  context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
+  worldMap.forEach((row, rowIndex) => row.forEach((type, columnIndex) => drawTile(type, columnIndex, rowIndex)));
   context.fillStyle = 'rgba(255, 214, 145, .25)';
   context.beginPath(); context.arc(width * .78, height * .2, 38, 0, Math.PI * 2); context.fill();
   context.fillStyle = '#f5c884'; context.beginPath(); context.arc(width * .78, height * .2, 22, 0, Math.PI * 2); context.fill();
@@ -240,8 +372,9 @@ function update(delta) {
   const moving = Math.hypot(vector.x, vector.y) > .08;
   localPlayer.moving = moving;
   if (moving) {
-    localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * delta * .00018));
-    localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * delta * .00018));
+    const speed = .18 / viewport.width;
+    localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * delta * speed));
+    localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * delta * speed));
     if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
     else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
   }
@@ -306,6 +439,12 @@ function switchCharacter() {
 
 function receive(connection, payload) {
   if (!payload || !payload.type) return;
+  if (payload.type === 'leave') {
+    remotePlayers.delete(payload.playerId);
+    renderPlayers();
+    if (isHost) broadcast(payload, connection.peer);
+    return;
+  }
   if (payload.type === 'state') {
     const previous = remotePlayers.get(payload.player.id);
     const player = {
@@ -344,18 +483,28 @@ function wireConnection(connection) {
   connections.set(connection.peer, connection);
   connection.on('data', (payload) => receive(connection, payload));
   connection.on('close', () => {
-    const disconnectedPlayer = [...remotePlayers.values()].find((player) => player.peerId === connection.peer);
-    if (disconnectedPlayer) remotePlayers.delete(disconnectedPlayer.id);
+    remotePlayers.forEach((player, playerId) => {
+      if (player.peerId === connection.peer) remotePlayers.delete(playerId);
+    });
     connections.delete(connection.peer);
     renderPlayers();
   });
 }
 
-function createPeer(room) {
+let leaveSent = false;
+function sendLeave() {
+  if (leaveSent) return;
+  leaveSent = true;
+  const payload = { type: 'leave', playerId: localPlayer.id };
+  if (isHost) broadcast(payload);
+  else if (hostConnection?.open) hostConnection.send(payload);
+}
+
+function createPeer() {
   if (!window.Peer) { setStatus('Mode solo'); return; }
-  const hostId = `noelle-meadow-${room.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
+  const hostId = `noelle-meadow-${ROOM_ID}`;
   peer = new Peer(hostId);
-  peer.on('open', () => { isHost = true; setStatus('Salon ouvert', 'online'); connectButton.textContent = 'Connecté'; connectButton.disabled = true; });
+  peer.on('open', () => { isHost = true; setStatus('Prairie partagée', 'online'); });
   peer.on('connection', (connection) => { wireConnection(connection); connection.on('open', () => connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] })); });
   peer.on('error', (error) => {
     if (error.type === 'unavailable-id') connectToHost(hostId);
@@ -365,14 +514,8 @@ function createPeer(room) {
 
 function connectToHost(hostId) {
   peer?.destroy(); peer = new Peer();
-  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', player: localPlayer }); setStatus('En ligne', 'online'); connectButton.textContent = 'Connecté'; connectButton.disabled = true; }); });
-  peer.on('error', () => setStatus('Salon introuvable'));
-}
-
-function connectRoom() {
-  const room = roomInput.value.trim() || 'prairie';
-  roomInput.value = room;
-  connectButton.disabled = true; setStatus('Connexion...'); createPeer(room);
+  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', player: localPlayer }); setStatus('Prairie partagée', 'online'); }); });
+  peer.on('error', () => setStatus('Prairie indisponible'));
 }
 
 function renderPlayers() {
@@ -401,9 +544,16 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
 window.addEventListener('resize', resize);
-connectButton.addEventListener('click', connectRoom);
-roomInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') connectRoom(); });
+window.addEventListener('pagehide', sendLeave);
+window.addEventListener('beforeunload', sendLeave);
 chatForm.addEventListener('submit', sendChatMessage);
 characterSwitch.addEventListener('click', switchCharacter);
+eggReward.addEventListener('click', openEgg);
+eggClose.addEventListener('click', closeEgg);
+eggModal.querySelector('.egg-modal-backdrop').addEventListener('click', closeEgg);
+eggImage.addEventListener('click', hitEgg);
+eggImage.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); hitEgg(); }
+});
 setInterval(sendState, 100);
-resize(); renderPlayers(); requestAnimationFrame(frame);
+resize(); renderPlayers(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);

@@ -35,6 +35,30 @@ button, input { font: inherit; }
 .speech-side-right { top: 13px; right: 0; bottom: 13px; height: auto; transform: rotate(180deg); background-repeat: repeat-y; background-size: 13px 13px; }
 .speech-bubble::after { content: ''; position: absolute; z-index: 3; left: 50%; bottom: -9px; width: 13px; height: 13px; transform: translateX(-50%) rotate(45deg); background-color: #19152a; background-image: url('Noelle/talkbox_ui_corner.png'); background-size: 13px 13px; }
 
+.egg-reward { position: absolute; z-index: 4; top: 22px; left: 50%; display: grid; place-items: center; width: 58px; height: 58px; transform: translateX(-50%); border: 1px solid rgba(247,241,222,.35); background: rgba(16,27,26,.72); cursor: pointer; image-rendering: pixelated; }
+.egg-reward:hover, .egg-reward:focus-visible { border-color: var(--mint); outline: none; box-shadow: 0 0 18px rgba(185,231,177,.25); }
+.egg-reward img { width: 32px; height: 32px; image-rendering: pixelated; }
+.egg-modal { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; }
+.egg-modal[hidden] { display: none; }
+.egg-modal-backdrop { position: absolute; inset: 0; background: rgba(10,18,17,.76); backdrop-filter: blur(3px); }
+.egg-card { position: relative; display: flex; flex-direction: column; align-items: center; width: min(330px, calc(100vw - 36px)); padding: 25px 24px 22px; border: 1px solid rgba(247,241,222,.3); background: #182a27; box-shadow: 0 18px 55px rgba(0,0,0,.4); }
+.egg-close { position: absolute; top: 7px; right: 10px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 24px; line-height: 1; }
+.egg-close:hover, .egg-close:focus-visible { color: var(--ink); outline: none; }
+.egg-label { margin: 0 0 5px; color: var(--mint); font: 10px 'DM Mono', monospace; letter-spacing: 1.5px; text-transform: uppercase; }
+.egg-card h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.egg-stage { position: relative; display: grid; place-items: center; width: 180px; height: 150px; margin: 12px 0 3px; }
+.egg-stage > img { width: 128px; height: 128px; image-rendering: pixelated; object-fit: contain; }
+.egg-image { cursor: pointer; outline: none; }
+.egg-image:hover, .egg-image:focus-visible { filter: brightness(1.2) drop-shadow(0 0 8px rgba(185,231,177,.4)); }
+.egg-image.egg-impact { animation: egg-impact .22s steps(3, end); }
+@keyframes egg-impact { 0% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(-5px, 2px) rotate(-5deg); } 50% { transform: translate(5px, -2px) rotate(5deg); } 75% { transform: translate(-3px, 1px) rotate(-3deg); } 100% { transform: translate(0, 0) rotate(0); } }
+.egg-stage > .egg-shard { position: absolute; top: 18px; left: 50%; width: 32px; height: 32px; pointer-events: none; opacity: 0; transform: translate(-50%, 0) scale(.7); }
+.egg-shard.is-visible { animation: shard-fall .8s ease-in forwards; }
+@keyframes shard-fall { 0% { opacity: 0; transform: translate(-50%, 0) scale(.7) rotate(0); } 18% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, 82px) scale(.7) rotate(110deg); } }
+.egg-shard.egg-half-right { top: 50%; left: 50%; width: 128px; height: 128px; opacity: 1; transform: translate(22px, -50%) rotate(7deg); animation: none; }
+.egg-progress { margin: 0 0 12px; color: var(--muted); font: 11px 'DM Mono', monospace; }
+.egg-result { min-height: 18px; margin: 12px 0 0; color: var(--coral); font: 11px 'DM Mono', monospace; text-align: center; }
+
 .hud { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 24px 30px; pointer-events: none; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .character-switch { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; border: 1px solid var(--line); padding: 8px 10px; background: rgba(16,27,26,.6); color: var(--ink); cursor: pointer; font: 10px 'DM Mono', monospace; pointer-events: auto; }

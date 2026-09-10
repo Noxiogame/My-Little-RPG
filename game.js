@@ -19,6 +19,7 @@ const eggImage = document.querySelector('#egg-image');
 const eggShard = document.querySelector('#egg-shard');
 const eggProgress = document.querySelector('#egg-progress');
 const eggResult = document.querySelector('#egg-result');
+const coinAmount = document.querySelector('#coin-amount');
 const TILE_SIZE = 20;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
@@ -74,8 +75,46 @@ const eggTextures = {
   shards: ['Tilesets/pipis_shard1.png', 'Tilesets/pipis_shard2.png', 'Tilesets/pipis_shard3.png'],
 };
 const eggRarities = ['Commune', 'Inhabituelle', 'Rare', 'Légendaire'];
+const eggRewards = [5, 15, 50, 200];
 const eggBreakChance = .2;
-const eggState = { hits: 0, open: false, broken: false, shardTimer: null };
+const sessionStorageKey = 'noelle-meadow-session-v1';
+const session = loadSession();
+const eggState = { hits: 0, open: false, broken: false, cooldownUntil: session.cooldownUntil, shardTimer: null };
+
+function loadSession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(sessionStorageKey) || '{}');
+    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: saved.character === 'spamton' ? 'spamton' : 'noelle' };
+  } catch {
+    return { coins: 0, cooldownUntil: 0, character: 'noelle' };
+  }
+}
+
+function saveSession() {
+  try {
+    localStorage.setItem(sessionStorageKey, JSON.stringify({
+      coins: session.coins,
+      cooldownUntil: eggState.cooldownUntil,
+      character: localPlayer.character,
+    }));
+  } catch {
+    // Storage can be unavailable in private browsing; the session remains usable.
+  }
+}
+
+function formatCooldown() {
+  const remaining = Math.max(0, eggState.cooldownUntil - Date.now());
+  const seconds = Math.ceil(remaining / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function updateRewardUi() {
+  const available = eggState.cooldownUntil <= Date.now();
+  eggReward.disabled = !available;
+  coinAmount.textContent = session.coins;
+  if (!available && !eggState.open) eggReward.title = `Prochain Pipis dans ${formatCooldown()}`;
+  else eggReward.title = 'Ouvrir le Pipis';
+}
 
 function setEggStage(stage) {
   eggImage.src = eggTextures.stages[stage];
@@ -85,6 +124,19 @@ function setEggStage(stage) {
 }
 
 function openEgg() {
+  if (eggState.cooldownUntil > Date.now()) {
+    eggModal.hidden = false;
+    eggState.open = true;
+    eggResult.textContent = `Prochain Pipis dans ${formatCooldown()}`;
+    eggImage.setAttribute('aria-disabled', 'true');
+    eggClose.focus();
+    return;
+  }
+  if (eggState.broken) {
+    eggState.hits = 0;
+    eggState.broken = false;
+    setEggStage(0);
+  }
   eggState.open = true;
   eggModal.hidden = false;
   eggResult.textContent = '';
@@ -108,10 +160,16 @@ function showEggShard(stage) {
 
 function breakEgg() {
   eggState.broken = true;
+  const rarityIndex = Math.min(3, Math.floor(eggState.hits / 3));
+  const reward = eggRewards[rarityIndex];
+  session.coins += reward;
+  eggState.cooldownUntil = Date.now() + 120000;
+  saveSession();
+  updateRewardUi();
   eggImage.src = eggTextures.broken;
   eggImage.alt = 'Oeuf brisé';
   eggImage.setAttribute('aria-disabled', 'true');
-  eggResult.textContent = `Rareté obtenue : ${eggRarities[Math.min(3, Math.floor(eggState.hits / 3))]}`;
+  eggResult.textContent = `Rareté obtenue : ${eggRarities[rarityIndex]} (+${reward} pièces)`;
   setTimeout(() => {
     if (!eggState.open) return;
     eggImage.src = eggTextures.left;
@@ -124,7 +182,7 @@ function breakEgg() {
 }
 
 function hitEgg() {
-  if (eggState.broken) return;
+  if (eggState.broken || eggState.cooldownUntil > Date.now()) return;
   eggImage.classList.remove('egg-impact');
   void eggImage.offsetWidth;
   eggImage.classList.add('egg-impact');
@@ -135,7 +193,7 @@ function hitEgg() {
   if (Math.random() < eggBreakChance || eggState.hits === 12) breakEgg();
 }
 
-const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: 'noelle' };
+const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: session.character };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -444,6 +502,7 @@ function switchCharacter() {
   characterSwitch.firstChild.textContent = localPlayer.character === 'noelle' ? 'Noelle ' : 'Spamton ';
   localPlayer.speech = '';
   localPlayer.speechUntil = 0;
+  saveSession();
   sendState();
 }
 
@@ -568,4 +627,6 @@ eggImage.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); hitEgg(); }
 });
 setInterval(sendState, 100);
-resize(); renderPlayers(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);
+setInterval(updateRewardUi, 1000);
+characterSwitch.firstChild.textContent = localPlayer.character === 'noelle' ? 'Noelle ' : 'Spamton ';
+resize(); renderPlayers(); updateRewardUi(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);

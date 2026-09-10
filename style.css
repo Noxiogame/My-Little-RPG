@@ -38,6 +38,9 @@ button, input { font: inherit; }
 .egg-reward { position: absolute; z-index: 4; top: 22px; left: 50%; display: grid; place-items: center; width: 58px; height: 58px; transform: translateX(-50%); border: 1px solid rgba(247,241,222,.35); background: rgba(16,27,26,.72); cursor: pointer; image-rendering: pixelated; }
 .egg-reward:hover, .egg-reward:focus-visible { border-color: var(--mint); outline: none; box-shadow: 0 0 18px rgba(185,231,177,.25); }
 .egg-reward img { width: 32px; height: 32px; image-rendering: pixelated; }
+.egg-reward:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .6; }
+.coin-wallet { position: absolute; z-index: 4; top: 35px; left: calc(50% + 39px); display: inline-flex; align-items: center; gap: 6px; min-width: 58px; padding: 8px 10px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.72); color: var(--ink); font: 12px 'DM Mono', monospace; }
+.coin-icon { display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid var(--coral); border-radius: 50%; color: var(--coral); font-size: 11px; }
 .egg-modal { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; }
 .egg-modal[hidden] { display: none; }
 .egg-modal-backdrop { position: absolute; inset: 0; background: rgba(10,18,17,.76); backdrop-filter: blur(3px); }

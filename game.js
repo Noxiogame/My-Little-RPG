@@ -290,10 +290,18 @@ function drawWorld() {
   context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
   const cameraX = localPlayer.x * worldSize.width;
   const cameraY = localPlayer.y * worldSize.height;
+  const visibleLeft = Math.max(0, Math.floor((cameraX - width / (2 * CAMERA_ZOOM)) / TILE_SIZE) - 1);
+  const visibleRight = Math.min(worldMap[0]?.length || 0, Math.ceil((cameraX + width / (2 * CAMERA_ZOOM)) / TILE_SIZE) + 1);
+  const visibleTop = Math.max(0, Math.floor((cameraY - height / (2 * CAMERA_ZOOM)) / TILE_SIZE) - 1);
+  const visibleBottom = Math.min(worldMap.length, Math.ceil((cameraY + height / (2 * CAMERA_ZOOM)) / TILE_SIZE) + 1);
   context.save();
   context.translate(width / 2 - cameraX * CAMERA_ZOOM, height / 2 - cameraY * CAMERA_ZOOM);
   context.scale(CAMERA_ZOOM, CAMERA_ZOOM);
-  worldMap.forEach((row, rowIndex) => row.forEach((type, columnIndex) => drawTile(type, columnIndex, rowIndex)));
+  for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
+    for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {
+      drawTile(worldMap[rowIndex][columnIndex], columnIndex, rowIndex);
+    }
+  }
   context.fillStyle = 'rgba(255, 214, 145, .25)';
   context.beginPath(); context.arc(worldSize.width * .78, worldSize.height * .2, 38, 0, Math.PI * 2); context.fill();
   context.fillStyle = '#f5c884'; context.beginPath(); context.arc(worldSize.width * .78, worldSize.height * .2, 22, 0, Math.PI * 2); context.fill();
@@ -320,6 +328,7 @@ function drawPlayer(player, isLocal = false) {
   const position = worldToScreen(player.x, player.y);
   const x = position.x;
   const y = position.y;
+  if (!isLocal && (x < -width || x > viewport.width + width || y < -height || y > viewport.height + height)) return;
   context.save();
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
@@ -401,6 +410,8 @@ function syncSpeechBubbles(players) {
   const activeIds = new Set();
   players.forEach((player) => {
     if (!player.speech || player.speechUntil <= performance.now()) return;
+    const position = worldToScreen(player.x, player.y);
+    if (position.x < -180 || position.x > viewport.width + 180 || position.y < -180 || position.y > viewport.height + 180) return;
     activeIds.add(player.id);
     let bubble = speechElements.get(player.id);
     if (!bubble) {
@@ -424,7 +435,6 @@ function syncSpeechBubbles(players) {
     }
     bubble.querySelector('.speech-bubble-text').textContent = player.speech;
     buildHorizontalEdges(bubble);
-    const position = worldToScreen(player.x, player.y);
     bubble.style.left = `${position.x}px`;
     const bubbleHeight = (characterSprites[player.character]?.[player.direction]?.[0]?.naturalHeight || 47) * CAMERA_ZOOM;
     bubble.style.top = `${position.y - bubbleHeight - 13}px`;

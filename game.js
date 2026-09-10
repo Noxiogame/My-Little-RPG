@@ -223,6 +223,7 @@ let animationTime = 0;
 let viewport = { width: 0, height: 0, dpr: 1 };
 let worldMap = [];
 let worldSize = { width: 0, height: 0 };
+const camera = { x: .5, y: .55 };
 
 function createWorldMap() {
   worldSize = { width: viewport.width * WORLD_SCALE, height: viewport.height * WORLD_SCALE };
@@ -272,7 +273,8 @@ function drawTile(type, column, row) {
 }
 
 function resize() {
-  viewport = { width: window.innerWidth, height: window.innerHeight, dpr: Math.min(window.devicePixelRatio || 1, 2) };
+  const visualViewport = window.visualViewport;
+  viewport = { width: visualViewport?.width || window.innerWidth, height: visualViewport?.height || window.innerHeight, dpr: Math.min(window.devicePixelRatio || 1, 2) };
   canvas.width = viewport.width * viewport.dpr;
   canvas.height = viewport.height * viewport.dpr;
   context.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
@@ -288,8 +290,8 @@ function setStatus(text, state = 'solo') {
 function drawWorld() {
   const { width, height } = viewport;
   context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
-  const cameraX = localPlayer.x * worldSize.width;
-  const cameraY = localPlayer.y * worldSize.height;
+  const cameraX = camera.x * worldSize.width;
+  const cameraY = camera.y * worldSize.height;
   const visibleLeft = Math.max(0, Math.floor((cameraX - width / (2 * CAMERA_ZOOM)) / TILE_SIZE) - 1);
   const visibleRight = Math.min(worldMap[0]?.length || 0, Math.ceil((cameraX + width / (2 * CAMERA_ZOOM)) / TILE_SIZE) + 1);
   const visibleTop = Math.max(0, Math.floor((cameraY - height / (2 * CAMERA_ZOOM)) / TILE_SIZE) - 1);
@@ -311,8 +313,8 @@ function drawWorld() {
 
 function worldToScreen(x, y) {
   return {
-    x: viewport.width / 2 + (x * worldSize.width - localPlayer.x * worldSize.width) * CAMERA_ZOOM,
-    y: viewport.height / 2 + (y * worldSize.height - localPlayer.y * worldSize.height) * CAMERA_ZOOM,
+    x: viewport.width / 2 + (x * worldSize.width - camera.x * worldSize.width) * CAMERA_ZOOM,
+    y: viewport.height / 2 + (y * worldSize.height - camera.y * worldSize.height) * CAMERA_ZOOM,
   };
 }
 
@@ -489,7 +491,7 @@ function update(delta) {
 
 function frame(now) {
   const delta = Math.min(now - lastTime, 50);
-  lastTime = now; animationTime += delta; update(delta); draw();
+  lastTime = now; animationTime += delta; update(delta); camera.x = localPlayer.x; camera.y = localPlayer.y; draw();
   requestAnimationFrame(frame);
 }
 
@@ -662,6 +664,7 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
 window.addEventListener('resize', resize);
+window.visualViewport?.addEventListener('resize', resize);
 window.addEventListener('pagehide', sendLeave);
 window.addEventListener('beforeunload', sendLeave);
 chatForm.addEventListener('submit', sendChatMessage);

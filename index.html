@@ -10,6 +10,7 @@
   <body>
     <main class="game-shell">
       <canvas id="game" aria-label="Prairie de Noelle"></canvas>
+      <div id="speech-bubbles" class="speech-bubbles" aria-live="polite"></div>
 
       <header class="hud">
         <div class="brand">
@@ -18,6 +19,7 @@
             <p class="eyebrow">NOELLE'S MEADOW</p>
             <h1>La prairie</h1>
           </div>
+          <button id="character-switch" class="character-switch" type="button" aria-label="Changer de personnage" title="Changer de personnage">Noelle <span aria-hidden="true">&#8644;</span></button>
         </div>
         <div class="online-status" id="status" data-state="solo">
           <span class="status-dot"></span>
@@ -32,6 +34,20 @@
           <button id="connect" type="button">Rejoindre</button>
         </div>
         <p id="room-help">Partage ce nom pour apparaître dans la même prairie.</p>
+      </section>
+
+      <section class="chat-panel" aria-label="Tchat de la prairie">
+        <div class="chat-heading">
+          <span>Tchat</span>
+          <span class="chat-live"><span></span> direct</span>
+        </div>
+        <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Messages du tchat">
+          <p class="chat-empty" id="chat-empty">Les messages apparaîtront ici.</p>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <input id="chat-input" maxlength="180" autocomplete="off" placeholder="Écrire un message..." aria-label="Message" />
+          <button type="submit" aria-label="Envoyer le message">Envoyer</button>
+        </form>
       </section>
 
       <div class="hint"><span class="key">WASD</span> ou joystick pour se déplacer</div>

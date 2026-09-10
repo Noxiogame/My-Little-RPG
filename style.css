@@ -16,9 +16,29 @@ button, input { font: inherit; }
 
 .game-shell { position: relative; width: 100vw; height: 100dvh; min-height: 520px; overflow: hidden; background: #315951; }
 #game { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.speech-bubbles { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.speech-bubble { position: absolute; min-width: 42px; max-width: 176px; padding: 11px 15px; transform: translate(-50%, -100%); background-color: #19152a; background-image: url('Noelle/talkbox_ui_interior.png'); background-repeat: repeat; color: #f7f1de; font: 11px/1.35 'DM Mono', monospace; overflow-wrap: anywhere; text-align: center; image-rendering: pixelated; }
+.speech-bubble-text { position: relative; z-index: 2; }
+.speech-frame { position: absolute; z-index: 1; width: 13px; height: 13px; background-repeat: no-repeat; background-size: 13px 13px; image-rendering: pixelated; pointer-events: none; }
+.speech-corner { background-image: url('Noelle/talkbox_ui_corner.png'); }
+.speech-side { background-image: url('Noelle/talkbox_ui_side.png'); }
+.speech-corner-top-left { top: 0; left: 0; }
+.speech-corner-top-right { top: 0; right: 0; transform: rotate(90deg); }
+.speech-corner-bottom-left { bottom: 0; left: 0; transform: rotate(-90deg); }
+.speech-corner-bottom-right { right: 0; bottom: 0; transform: rotate(180deg); }
+.speech-side-top { top: 0; right: 13px; left: 13px; width: auto; display: flex; overflow: hidden; background: none; }
+.speech-side-bottom { right: 13px; bottom: 0; left: 13px; width: auto; display: flex; overflow: hidden; background: none; }
+.speech-horizontal-tile { flex: 0 0 13px; width: 13px; height: 13px; background-image: url('Noelle/talkbox_ui_side.png'); background-size: 13px 13px; background-repeat: no-repeat; image-rendering: pixelated; }
+.speech-side-top .speech-horizontal-tile { transform: rotate(90deg); }
+.speech-side-bottom .speech-horizontal-tile { transform: rotate(-90deg); }
+.speech-side-left { top: 13px; bottom: 13px; left: 0; height: auto; background-repeat: repeat-y; background-size: 13px 13px; }
+.speech-side-right { top: 13px; right: 0; bottom: 13px; height: auto; transform: rotate(180deg); background-repeat: repeat-y; background-size: 13px 13px; }
+.speech-bubble::after { content: ''; position: absolute; z-index: 3; left: 50%; bottom: -9px; width: 13px; height: 13px; transform: translateX(-50%) rotate(45deg); background-color: #19152a; background-image: url('Noelle/talkbox_ui_corner.png'); background-size: 13px 13px; }
 
 .hud { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 24px 30px; pointer-events: none; }
 .brand { display: flex; align-items: center; gap: 12px; }
+.character-switch { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; border: 1px solid var(--line); padding: 8px 10px; background: rgba(16,27,26,.6); color: var(--ink); cursor: pointer; font: 10px 'DM Mono', monospace; pointer-events: auto; }
+.character-switch:hover, .character-switch:focus-visible { border-color: var(--mint); color: var(--mint); outline: none; }
 .brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(247,241,222,.45); border-radius: 50%; color: var(--mint); font-family: 'DM Mono', monospace; font-size: 18px; }
 .eyebrow { margin: 0 0 1px; color: var(--mint); font: 500 10px 'DM Mono', monospace; letter-spacing: 2px; }
 h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
@@ -34,6 +54,20 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
 .room-controls button { border: 0; padding: 0 12px; background: var(--mint); color: #16322c; cursor: pointer; font-size: 12px; font-weight: 700; }
 .room-controls button:disabled { cursor: wait; opacity: .55; }
 .room-panel p { margin: 9px 0 0; color: #91a79a; font-size: 11px; line-height: 1.35; }
+.chat-panel { position: absolute; z-index: 3; top: 276px; right: 30px; display: flex; flex-direction: column; width: 250px; height: 258px; padding: 14px; border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(12px); }
+.chat-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; color: var(--ink); font: 11px 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; }
+.chat-live { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 9px; letter-spacing: 0; text-transform: none; }
+.chat-live span { width: 5px; height: 5px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 7px var(--mint); }
+.chat-messages { display: flex; flex: 1; flex-direction: column; gap: 7px; min-height: 0; overflow-y: auto; padding: 2px 3px 10px 0; scrollbar-color: rgba(185,231,177,.35) transparent; scrollbar-width: thin; }
+.chat-empty { margin: auto 0; color: #91a79a; font-size: 11px; line-height: 1.4; text-align: center; }
+.chat-message { max-width: 92%; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+.chat-message strong { display: block; margin-bottom: 2px; color: var(--mint); font: 9px 'DM Mono', monospace; letter-spacing: .6px; text-transform: uppercase; }
+.chat-message.is-own { align-self: flex-end; color: var(--ink); text-align: right; }
+.chat-message.is-own strong { color: var(--coral); }
+.chat-form { display: flex; gap: 6px; padding-top: 9px; border-top: 1px solid var(--line); }
+.chat-form input { min-width: 0; flex: 1; border: 1px solid var(--line); padding: 8px 9px; outline: 0; background: rgba(255,255,255,.06); color: var(--ink); font-size: 11px; }
+.chat-form input:focus { border-color: var(--mint); }
+.chat-form button { border: 0; padding: 0 9px; background: var(--mint); color: #16322c; cursor: pointer; font-size: 11px; font-weight: 700; }
 
 .hint { position: absolute; z-index: 2; right: 30px; bottom: 26px; color: rgba(247,241,222,.65); font: 11px 'DM Mono', monospace; }
 .key { padding: 4px 7px; border: 1px solid var(--line); color: var(--ink); }
@@ -47,8 +81,10 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
 
 @media (max-width: 620px) {
   .hud { padding: 18px; }
-  .room-panel { top: 78px; right: 18px; left: 18px; width: auto; }
-  .hint { right: 18px; bottom: 20px; font-size: 9px; }
+  .character-switch { position: absolute; top: 70px; left: 18px; margin: 0; }
+  .room-panel { top: 116px; right: 18px; left: 18px; width: auto; }
+  .chat-panel { top: auto; right: 18px; bottom: 18px; width: min(250px, calc(100vw - 154px)); height: 218px; padding: 11px; }
+  .hint { display: none; }
   .joystick { left: 18px; bottom: 18px; width: 116px; height: 116px; }
   .players { top: 174px; right: 18px; }
 }

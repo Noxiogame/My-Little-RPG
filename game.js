@@ -227,6 +227,9 @@ const skinPaths = {
   puppet: { folder: 'Characters/Puppet', prefix: 'puppet' },
   'nightmare-fredbear': { folder: 'Characters/NightmareFredbear', prefix: 'nightmare_fredbear' },
   springtrap: { folder: 'Characters/Springtrap', prefix: 'springtrap' },
+  nightmarionne: { folder: 'Characters/Nightmarionne', prefix: 'nightmarionne' },
+  'funtime-freddy': { folder: 'Characters/FuntimeFreddy', prefix: 'funtime_freddy' },
+  steve: { folder: 'Characters/Steve', prefix: 'steve' },
   'withered-bonnie': { folder: 'Characters/WitheredBonnie', prefix: 'withered_bonnie' },
   villager: { folder: 'Characters/Villageois', prefix: 'villager' },
   'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
@@ -353,6 +356,9 @@ const skins = [
   { id: 'puppet', label: 'Puppet', rarity: 'Rare', price: 250 },
   { id: 'nightmare-fredbear', label: 'Nightmare Fredbear', rarity: 'Légendaire', price: 550 },
   { id: 'springtrap', label: 'Springtrap', rarity: 'Légendaire', price: 620 },
+  { id: 'nightmarionne', label: 'Nightmarionne', rarity: 'Légendaire', price: 680 },
+  { id: 'funtime-freddy', label: 'Funtime Freddy', rarity: 'Légendaire', price: 610 },
+  { id: 'steve', label: 'Steve', rarity: 'Rare', price: 260 },
   { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];
@@ -1244,13 +1250,13 @@ function update(delta) {
       player.speech = '';
       player.speechUntil = 0;
     }
-    const previousX = player.x;
-    const previousY = player.y;
     player.x += (player.targetX - player.x) * smoothing;
     player.y += (player.targetY - player.y) * smoothing;
-    const traveled = Math.hypot(player.x - previousX, player.y - previousY);
-    player.movementSpeed = traveled > 0 ? Math.min(1.75, traveled / (PLAYER_SPEED * delta / 1000 / worldSize.width)) : 0;
-    player.moving = traveled > 0.0001;
+    // `moving`/`direction` already come straight from the sender's network state
+    // (spread in via ...payload.player when the state/snapshot arrived). Deriving
+    // "moving" from the smoothed per-frame travel distance instead is noisy - the
+    // exponential smoothing decays unevenly between the ~100ms network updates,
+    // so it kept flickering true/false and made remote animations stutter.
   });
 }
 
@@ -1416,8 +1422,8 @@ function receive(connection, payload) {
     const previous = remotePlayers.get(payload.player.id);
     const player = {
       ...payload.player,
-      speech: payload.player.speech ?? previous?.speech ?? '',
-      speechUntil: Number.isFinite(payload.player.speechUntil) ? payload.player.speechUntil : (previous?.speechUntil ?? 0),
+      speech: previous?.speech ?? '',
+      speechUntil: previous?.speechUntil ?? 0,
       x: previous?.x ?? payload.player.x,
       y: previous?.y ?? payload.player.y,
       targetX: payload.player.x,
@@ -1464,7 +1470,7 @@ function receive(connection, payload) {
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
       const existing = remotePlayers.get(player.id);
-      remotePlayers.set(player.id, { ...player, targetX: player.x, targetY: player.y, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
+      remotePlayers.set(player.id, { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, targetX: player.x, targetY: player.y, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
     }
     });
   }

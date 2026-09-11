@@ -1,10 +1,14 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.8';
+const APP_VERSION = '2026.09.11.9';
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+const authSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+let authPresenceChannel = null;
+let authUserId = null;
+let authSessionLost = false;
 const joystick = document.querySelector('#joystick');
 const stick = document.querySelector('#stick');
 const chatMessages = document.querySelector('#chat-messages');
@@ -188,6 +192,60 @@ function authEmail(identifier) {
   return `${identifier.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@accounts.laprairie.game`;
 }
 
+function showAuthError(error) {
+  const message = `${error?.code || ''} ${error?.message || ''}`.toLowerCase();
+  if (message.includes('already registered') || message.includes('already exists') || message.includes('duplicate')) return 'Cet identifiant est déjà utilisé.';
+  if (message.includes('invalid login') || message.includes('invalid credentials') || message.includes('invalid')) return 'Identifiant ou mot de passe incorrect.';
+  if (message.includes('email not confirmed') || message.includes('not confirmed')) return 'Ce compte n’est pas encore activé. Réessayez après l’activation du service de comptes.';
+  if (message.includes('password') && (message.includes('short') || message.includes('least'))) return 'Le mot de passe doit contenir au moins 8 caractères.';
+  if (message.includes('rate limit') || message.includes('too many')) return 'Trop de tentatives. Patientez un instant avant de réessayer.';
+  return 'Impossible de terminer cette action. Vérifiez vos informations et réessayez.';
+}
+
+async function releaseAuthSession(message = '') {
+  authSessionLost = true;
+  if (authPresenceChannel) {
+    await authPresenceChannel.untrack().catch(() => {});
+    await authClient.removeChannel(authPresenceChannel);
+    authPresenceChannel = null;
+  }
+  await authClient.auth.signOut({ scope: 'local' }).catch(() => {});
+  localStorage.removeItem(activeAccountStorageKey);
+  mainMenu.hidden = false;
+  hideAuthForm();
+  if (message) menuMessage.textContent = message;
+}
+
+async function claimAuthSession(userId) {
+  if (!authClient || !userId) return true;
+  authUserId = userId;
+  authSessionLost = false;
+  const channelName = `account-session:${userId}`;
+  authPresenceChannel = authClient.channel(channelName, { config: { presence: { key: authSessionId } } });
+  authPresenceChannel.on('broadcast', { event: 'claim' }, ({ payload }) => {
+    if (payload?.sessionId && payload.sessionId !== authSessionId && payload.sessionId < authSessionId) {
+      releaseAuthSession('Ce compte est déjà ouvert sur un autre appareil.');
+    }
+  });
+  const subscribeStatus = await new Promise((resolve) => {
+    authPresenceChannel.subscribe((status) => resolve(status));
+  });
+  if (subscribeStatus !== 'SUBSCRIBED') {
+    await authClient.removeChannel(authPresenceChannel);
+    authPresenceChannel = null;
+    return true;
+  }
+  const existingSessions = Object.keys(authPresenceChannel.presenceState()).filter((key) => key !== authSessionId);
+  const winner = [authSessionId, ...existingSessions].sort()[0];
+  if (winner !== authSessionId) {
+    await releaseAuthSession('Ce compte est déjà ouvert sur un autre appareil.');
+    return false;
+  }
+  await authPresenceChannel.track({ sessionId: authSessionId, joinedAt: Date.now() });
+  await authPresenceChannel.send({ type: 'broadcast', event: 'claim', payload: { sessionId: authSessionId } });
+  return true;
+}
+
 async function loadRemoteSession(user) {
   if (!authClient) return;
   const [{ data: profile }, { data: playerData }] = await Promise.all([
@@ -213,6 +271,7 @@ async function loadRemoteSession(user) {
 }
 
 async function saveRemoteSession() {
+  if (authSessionLost || !authClient) return;
   const { data: authData } = await authClient.auth.getUser();
   if (!authData.user) return;
   await authClient.from('profiles').update({ nickname: session.nickname, updated_at: new Date().toISOString() }).eq('user_id', authData.user.id);
@@ -279,8 +338,9 @@ function closeAccount() {
 }
 
 function logoutAccount() {
-  const logout = authClient ? authClient.auth.signOut() : Promise.resolve();
+  const logout = authClient ? authClient.auth.signOut({ scope: 'local' }) : Promise.resolve();
   logout.finally(() => {
+    if (authPresenceChannel) authClient.removeChannel(authPresenceChannel);
     localStorage.removeItem(activeAccountStorageKey);
     window.location.reload();
   });
@@ -295,11 +355,7 @@ async function signInAccount() {
   }
   loginAccount.disabled = true;
   const { error } = await authClient.auth.signInWithPassword({ email: authEmail(identifier), password });
-  if (error) {
-    menuMessage.textContent = error.message.toLowerCase().includes('email not confirmed')
-      ? 'Ce compte doit être réactivé depuis le service de comptes. Aucun email n’est demandé dans le jeu.'
-      : 'Identifiant ou mot de passe incorrect.';
-  }
+  if (error) menuMessage.textContent = showAuthError(error);
   else window.location.reload();
   loginAccount.disabled = false;
 }
@@ -315,7 +371,7 @@ async function createRemoteAccount() {
   createAccount.disabled = true;
   const { data, error } = await authClient.auth.signUp({ email: authEmail(identifier), password, options: { data: { login_id: identifier, nickname } } });
   if (error) {
-    menuMessage.textContent = error.message;
+    menuMessage.textContent = showAuthError(error);
   } else if (data.session) {
     window.location.reload();
   } else {
@@ -340,6 +396,7 @@ async function initializeAuth() {
   const { data } = await authClient.auth.getSession();
   if (data.session) {
     await loadRemoteSession(data.session.user);
+    if (!await claimAuthSession(data.session.user.id)) return;
     mainMenu.hidden = true;
   } else {
     mainMenu.hidden = false;

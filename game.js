@@ -30,6 +30,10 @@ const eggImage = document.querySelector('#egg-image');
 const eggShard = document.querySelector('#egg-shard');
 const eggProgress = document.querySelector('#egg-progress');
 const eggResult = document.querySelector('#egg-result');
+const eggStage = document.querySelector('.egg-stage');
+const eggParticles = document.querySelector('#egg-particles');
+const eggGlow = document.querySelector('#egg-glow');
+const eggCard = document.querySelector('.egg-card');
 const skinModal = document.querySelector('#skin-modal');
 const skinClose = document.querySelector('#skin-close');
 const skinList = document.querySelector('#skin-list');
@@ -221,6 +225,8 @@ const skinPaths = {
   foxy: { folder: 'Characters/Foxy', prefix: 'foxy' },
   pikachu: { folder: 'Characters/Pikachu', prefix: 'pikachu' },
   puppet: { folder: 'Characters/Puppet', prefix: 'puppet' },
+  'nightmare-fredbear': { folder: 'Characters/NightmareFredbear', prefix: 'nightmare_fredbear' },
+  springtrap: { folder: 'Characters/Springtrap', prefix: 'springtrap' },
   'withered-bonnie': { folder: 'Characters/WitheredBonnie', prefix: 'withered_bonnie' },
   villager: { folder: 'Characters/Villageois', prefix: 'villager' },
   'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
@@ -311,7 +317,12 @@ const eggTextures = {
   right: 'Tilesets/pipis_broken_right.png',
   shards: ['Tilesets/pipis_shard1.png', 'Tilesets/pipis_shard2.png', 'Tilesets/pipis_shard3.png'],
 };
-const eggRarities = ['Commun', 'Non commun', 'Rare', 'Légendaire'];
+const eggRarities = [
+  { key: 'commun', label: 'Commun', color: '#cfd8cd' },
+  { key: 'non-commun', label: 'Non commun', color: '#b9e7b1' },
+  { key: 'rare', label: 'Rare', color: '#8ec9ff' },
+  { key: 'legendaire', label: 'Légendaire', color: '#ffd68c' },
+];
 const eggRewards = [8, 15, 24, 36, 52, 73, 100, 135, 180, 240, 340, 500];
 const eggBreakChance = .3;
 
@@ -319,6 +330,11 @@ function getEggRewardForLevel(level) {
   if (!level) return 0;
   const index = Math.min(level, eggRewards.length) - 1;
   return eggRewards[index] ?? eggRewards[eggRewards.length - 1];
+}
+
+function getRarityForHits(hits) {
+  const tier = Math.min(3, Math.floor(hits / 3));
+  return eggRarities[tier];
 }
 const skins = [
   { id: 'noelle', label: 'Noelle', rarity: 'Commun', price: 0 },
@@ -335,6 +351,8 @@ const skins = [
   { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150 },
   { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400 },
   { id: 'puppet', label: 'Puppet', rarity: 'Rare', price: 250 },
+  { id: 'nightmare-fredbear', label: 'Nightmare Fredbear', rarity: 'Légendaire', price: 550 },
+  { id: 'springtrap', label: 'Springtrap', rarity: 'Légendaire', price: 620 },
   { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];
@@ -664,11 +682,16 @@ function updateRewardUi() {
   eggCooldown.textContent = available ? 'Disponible' : `Prochain Pipis dans ${formatCooldown()}`;
   if (!available && !eggState.open) eggReward.title = `Prochain Pipis dans ${formatCooldown()}`;
   else eggReward.title = 'Ouvrir le Pipis';
+  eggReward.classList.toggle('is-ready', available && !eggState.open && !eggState.broken);
 }
 
 function setEggStage(stage) {
-  eggImage.src = eggTextures.stages[stage];
-  eggImage.alt = `Oeuf, phase ${stage + 1}`;
+  eggImage.classList.add('is-fading');
+  setTimeout(() => {
+    eggImage.src = eggTextures.stages[stage];
+    eggImage.alt = `Oeuf, phase ${stage + 1}`;
+    eggImage.classList.remove('is-fading');
+  }, 90);
   eggShard.hidden = true;
   eggProgress.textContent = `${eggState.hits} / 12 frappes`;
 }
@@ -685,11 +708,13 @@ function openEgg() {
   if (eggState.broken) {
     eggState.hits = 0;
     eggState.broken = false;
+    eggImage.classList.remove('egg-half-left');
     setEggStage(0);
   }
   eggState.open = true;
   eggModal.hidden = false;
   eggResult.textContent = '';
+  eggCard?.classList.remove('is-celebrating');
   eggImage.setAttribute('aria-disabled', eggState.broken ? 'true' : 'false');
   eggClose.focus();
 }
@@ -697,6 +722,8 @@ function openEgg() {
 function closeEgg() {
   eggState.open = false;
   eggModal.hidden = true;
+  eggCard?.classList.remove('is-celebrating');
+  updateRewardUi();
 }
 
 function showEggShard(stage) {
@@ -708,9 +735,54 @@ function showEggShard(stage) {
   eggState.shardTimer = setTimeout(() => { eggShard.hidden = true; }, 900);
 }
 
+function spawnEggParticles(color, count = 10, spread = 60) {
+  if (!eggParticles) return;
+  for (let index = 0; index < count; index += 1) {
+    const particle = document.createElement('span');
+    particle.className = 'egg-particle';
+    const angle = (Math.PI * 2 * index) / count + (Math.random() * .6 - .3);
+    const distance = spread + Math.random() * spread * .8;
+    particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+    particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+    particle.style.setProperty('--rot', `${180 + Math.random() * 360}deg`);
+    particle.style.setProperty('--size', `${4 + Math.random() * 5}px`);
+    particle.style.setProperty('--color', color);
+    particle.style.setProperty('--duration', `${.55 + Math.random() * .35}s`);
+    particle.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+    eggParticles.append(particle);
+    particle.addEventListener('animationend', () => particle.remove(), { once: true });
+  }
+}
+
+function showFloatingReward(text, color) {
+  if (!eggStage) return;
+  const pop = document.createElement('div');
+  pop.className = 'egg-reward-pop';
+  pop.textContent = text;
+  pop.style.color = color;
+  eggStage.append(pop);
+  pop.addEventListener('animationend', () => pop.remove(), { once: true });
+}
+
+function flashEggGlow(color) {
+  if (!eggGlow) return;
+  eggGlow.style.setProperty('--rarity-glow', color);
+  eggGlow.classList.remove('is-flashing');
+  void eggGlow.offsetWidth;
+  eggGlow.classList.add('is-flashing');
+}
+
+function shakeEggCard() {
+  if (!eggCard) return;
+  eggCard.classList.remove('is-shaking');
+  void eggCard.offsetWidth;
+  eggCard.classList.add('is-shaking');
+}
+
 function breakEgg() {
   eggState.broken = true;
   const reward = getEggRewardForLevel(eggState.hits);
+  const rarity = getRarityForHits(eggState.hits);
   session.coins += reward;
   eggState.cooldownUntil = Date.now() + 120000;
   saveSession();
@@ -718,16 +790,32 @@ function breakEgg() {
   eggImage.src = eggTextures.broken;
   eggImage.alt = 'Oeuf brisé';
   eggImage.setAttribute('aria-disabled', 'true');
-  eggResult.textContent = `Pipis gagnés : +${reward} pièces`;
+  eggResult.innerHTML = `<span class="egg-rarity-badge" data-rarity="${rarity.key}">${rarity.label}</span>Pipis gagnés : +${reward} pièces`;
+  shakeEggCard();
+  flashEggGlow(hexToRgba(rarity.color, .55));
+  spawnEggParticles(rarity.color, rarity.key === 'legendaire' ? 22 : 14, rarity.key === 'legendaire' ? 90 : 60);
+  showFloatingReward(`+${reward} ¢`, rarity.color);
+  eggCard?.classList.add('is-celebrating');
+  eggCard?.style.setProperty('--rarity-glow', hexToRgba(rarity.color, .45));
   setTimeout(() => {
     if (!eggState.open) return;
     eggImage.src = eggTextures.left;
     eggImage.alt = 'Moitié gauche de l’oeuf brisé';
+    eggImage.classList.add('egg-half-left');
     eggShard.src = eggTextures.right;
     eggShard.alt = 'Moitié droite de l’oeuf brisé';
     eggShard.hidden = false;
     eggShard.className = 'egg-shard is-visible egg-half-right';
   }, 420);
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const clean = hex.replace('#', '');
+  const bigint = parseInt(clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function hitEgg() {
@@ -738,8 +826,13 @@ function hitEgg() {
   eggState.hits += 1;
   const reward = getEggRewardForLevel(eggState.hits);
   const stage = Math.min(3, Math.floor(eggState.hits / 3));
+  const rarity = getRarityForHits(eggState.hits);
   setEggStage(stage);
-  if (eggState.hits % 3 === 0 && stage > 0) showEggShard(stage);
+  spawnEggParticles(rarity.color, 5, 26);
+  if (eggState.hits % 3 === 0 && stage > 0) {
+    showEggShard(stage);
+    flashEggGlow(hexToRgba(rarity.color, .35));
+  }
   if (eggState.hits === 12) {
     eggResult.textContent = `Dernier niveau ! Potentiel : +${reward} pièces`;
     breakEgg();

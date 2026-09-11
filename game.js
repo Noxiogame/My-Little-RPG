@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.9';
+const APP_VERSION = '2026.09.11.10';
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -794,16 +794,23 @@ function sendState() {
   else if (hostConnection?.open) hostConnection.send(payload);
 }
 
+const versionReloadKey = 'noelle-meadow-version-reload-v1';
 let versionCheckPromise = null;
+let lastVersionCheckAt = 0;
 async function checkForNewVersion() {
   if (versionCheckPromise) return versionCheckPromise;
+  if (Date.now() - lastVersionCheckAt < 60000) return null;
+  lastVersionCheckAt = Date.now();
   versionCheckPromise = (async () => {
   try {
     const response = await fetch(`index.html?version-check=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) return;
     const html = await response.text();
     const version = html.match(/name=["']app-version["'][^>]*content=["']([^"']+)["']/i)?.[1];
-    if (version && version !== APP_VERSION) window.location.reload();
+    if (version && version !== APP_VERSION && sessionStorage.getItem(versionReloadKey) !== version) {
+      sessionStorage.setItem(versionReloadKey, version);
+      window.location.href = `${window.location.pathname}?app-version=${encodeURIComponent(version)}`;
+    }
   } catch {
     // The game remains playable when version checks are unavailable.
   } finally {
@@ -1101,7 +1108,7 @@ eggImage.addEventListener('keydown', (event) => {
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
-setInterval(checkForNewVersion, 30000);
+setInterval(checkForNewVersion, 300000);
 checkForNewVersion();
 updateAccountUi();
 mainMenu.hidden = false;

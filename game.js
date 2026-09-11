@@ -3,6 +3,7 @@ const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
 const APP_VERSION = '2026.09.11.213000';
 const VERSION_CHECK_INTERVAL = 15000;
+const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 let versionMismatchTriggered = false;
@@ -81,6 +82,13 @@ function updateVersionBadge(version = APP_VERSION) {
   if (appVersionBadge) appVersionBadge.textContent = `v${version}`;
 }
 
+function buildReloadUrl(version = APP_VERSION) {
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('v', version);
+  nextUrl.searchParams.set('reload', Date.now().toString());
+  return nextUrl.toString();
+}
+
 function reloadGameSafely() {
   if (versionMismatchTriggered) return;
   versionMismatchTriggered = true;
@@ -91,12 +99,14 @@ function reloadGameSafely() {
   }
   closeAllConnections();
   localStorage.setItem('app-last-version', APP_VERSION);
-  window.location.reload();
+  window.location.replace(buildReloadUrl(APP_VERSION));
 }
 
 function forceVersionReload(version = APP_VERSION, reason = 'Une mise à jour du jeu est disponible.') {
   if (versionMismatchTriggered) return;
+  if (sessionStorage.getItem(VERSION_RELOAD_KEY) === version) return;
   versionMismatchTriggered = true;
+  sessionStorage.setItem(VERSION_RELOAD_KEY, version);
   console.warn(`${reason} Reloading to version ${version}.`);
   if (peer) {
     try { peer.destroy(); } catch {}
@@ -104,11 +114,16 @@ function forceVersionReload(version = APP_VERSION, reason = 'Une mise à jour du
   }
   closeAllConnections();
   localStorage.setItem('app-last-version', version);
-  window.location.reload();
+  window.location.replace(buildReloadUrl(version));
 }
 
 async function checkForGameVersion() {
   updateVersionBadge();
+
+  const currentQueryVersion = new URLSearchParams(window.location.search).get('v');
+  if (currentQueryVersion && currentQueryVersion === APP_VERSION) {
+    return;
+  }
 
   try {
     const response = await fetch(`version.json?ts=${Date.now()}`, { cache: 'no-store' });

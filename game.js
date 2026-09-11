@@ -1,6 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
+const APP_VERSION = '2026.09.11.3';
 const status = document.querySelector('#status');
 const statusText = document.querySelector('#status-text');
 const playersElement = document.querySelector('#players');
@@ -69,6 +70,8 @@ function createSprite(character, direction, frame) {
     spamton: { folder: 'Spamton', prefix: 'spamton' },
     temmie: { folder: 'Temmie', prefix: 'temmie' },
     asgore: { folder: 'Asgore', prefix: 'asgore' },
+    foxy: { folder: '.', prefix: 'foxy' },
+    pikachu: { folder: '.', prefix: 'pikachu' },
   };
   const skin = skinPaths[character] || skinPaths.noelle;
   const folder = skin.folder;
@@ -82,6 +85,8 @@ const characterSprites = {
   'noelle-alt': Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle-alt', direction, frame))])),
   temmie: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('temmie', direction, frame))])),
   asgore: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('asgore', direction, frame))])),
+  foxy: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('foxy', direction, frame))])),
+  pikachu: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('pikachu', direction, frame))])),
   spamton: {
     down: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
     left: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'left', frame)),
@@ -106,6 +111,8 @@ const skins = [
   { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
   { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 220 },
   { id: 'asgore', label: 'Asgore', rarity: 'Légendaire', price: 350 },
+  { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150, preview: 'foxy_down2.png' },
+  { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400, preview: 'pikachu_down2.png' },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const session = loadSession();
@@ -531,6 +538,18 @@ function sendState() {
   else if (hostConnection?.open) hostConnection.send(payload);
 }
 
+async function checkForNewVersion() {
+  try {
+    const response = await fetch(`index.html?version-check=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const html = await response.text();
+    const version = html.match(/name=["']app-version["'][^>]*content=["']([^"']+)["']/i)?.[1];
+    if (version && version !== APP_VERSION) window.location.reload();
+  } catch {
+    // The game remains playable when version checks are unavailable.
+  }
+}
+
 function broadcast(payload, exceptId = null) {
   connections.forEach((connection, id) => { if (id !== exceptId && connection.open) connection.send(payload); });
 }
@@ -590,7 +609,7 @@ function renderSkinLibrary() {
     item.className = `skin-item${equipped ? ' is-equipped' : ''}`;
     const preview = document.createElement('img');
     const previewPath = skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' : `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`;
-    preview.src = `${previewPath}_down2.png`;
+    preview.src = skin.preview || `${previewPath}_down2.png`;
     preview.alt = skin.label;
     const details = document.createElement('div');
     details.className = 'skin-details';
@@ -651,9 +670,17 @@ function receive(connection, payload) {
     renderPlayers();
   }
   if (payload.type === 'hello' && isHost) {
+    if (payload.version && payload.version !== APP_VERSION) {
+      connection.send({ type: 'reload', version: APP_VERSION });
+      return;
+    }
     connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
     broadcast({ type: 'state', player: localPlayer }, connection.peer);
     announcePresence('join', payload.player.id, connection.peer);
+  }
+  if (payload.type === 'reload') {
+    window.location.reload();
+    return;
   }
   if (payload.type === 'presence') {
     addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
@@ -728,7 +755,7 @@ function createPeer() {
 
 function connectToHost(hostId) {
   peer?.destroy(); peer = new Peer();
-  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', player: localPlayer }); setStatus('Prairie partagée', 'online'); }); });
+  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer }); setStatus('Prairie partagée', 'online'); }); });
   peer.on('error', () => setStatus('Prairie indisponible'));
 }
 
@@ -807,5 +834,7 @@ eggImage.addEventListener('keydown', (event) => {
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
+setInterval(checkForNewVersion, 30000);
+checkForNewVersion();
 characterSwitch.firstChild.textContent = `${skins.find((skin) => skin.id === localPlayer.character).label} `;
 resize(); renderPlayers(); updateRewardUi(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);

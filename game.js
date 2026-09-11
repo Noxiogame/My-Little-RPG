@@ -10,6 +10,7 @@ let authPresenceChannel = null;
 let authUserId = null;
 let authSessionLost = false;
 let isAuthenticated = false;
+const gameShell = document.querySelector('.game-shell');
 const joystick = document.querySelector('#joystick');
 const stick = document.querySelector('#stick');
 const chatMessages = document.querySelector('#chat-messages');
@@ -103,6 +104,7 @@ const directions = ['down', 'left', 'right', 'up'];
 const skinPaths = {
   noelle: { folder: 'Noelle', prefix: 'noelle' },
   'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
+  frisk: { folder: '.', prefix: 'frisk' },
   spamton: { folder: 'Spamton', prefix: 'spamton' },
   temmie: { folder: 'Temmie', prefix: 'temmie' },
   asgore: { folder: 'Asgore', prefix: 'asgore' },
@@ -123,9 +125,9 @@ const spriteLoadPromises = new Map();
 function createSprite(character, direction, frame) {
   const image = new Image();
   const skin = skinPaths[character] || skinPaths.noelle;
-  const folder = skin.folder;
+  const folder = skin.folder ? `${skin.folder}/` : '';
   const prefix = skin.prefix;
-  image.src = `${folder}/${prefix}_${direction}${frame}.png`;
+  image.src = `${folder}${prefix}_${direction}${frame}.png`;
   return image;
 }
 
@@ -200,11 +202,18 @@ const eggTextures = {
   shards: ['Tilesets/pipis_shard1.png', 'Tilesets/pipis_shard2.png', 'Tilesets/pipis_shard3.png'],
 };
 const eggRarities = ['Commun', 'Non commun', 'Rare', 'Légendaire'];
-const eggRewards = [5, 15, 50, 200];
-const eggBreakChance = .2;
+const eggRewards = [8, 15, 24, 36, 52, 73, 100, 135, 180, 240, 340, 500];
+const eggBreakChance = .3;
+
+function getEggRewardForLevel(level) {
+  if (!level) return 0;
+  const index = Math.min(level, eggRewards.length) - 1;
+  return eggRewards[index] ?? eggRewards[eggRewards.length - 1];
+}
 const skins = [
   { id: 'noelle', label: 'Noelle', rarity: 'Commun', price: 0 },
   { id: 'noelle-alt', label: 'Noelle Alt', rarity: 'Non commun', price: 60 },
+  { id: 'frisk', label: 'Frisk', rarity: 'Rare', price: 220 },
   { id: 'villager', label: 'Villageois', rarity: 'Non commun', price: 90 },
   { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
   { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 450 },
@@ -588,8 +597,7 @@ function showEggShard(stage) {
 
 function breakEgg() {
   eggState.broken = true;
-  const rarityIndex = Math.min(3, Math.floor(eggState.hits / 3));
-  const reward = eggRewards[rarityIndex];
+  const reward = getEggRewardForLevel(eggState.hits);
   session.coins += reward;
   eggState.cooldownUntil = Date.now() + 120000;
   saveSession();
@@ -597,7 +605,7 @@ function breakEgg() {
   eggImage.src = eggTextures.broken;
   eggImage.alt = 'Oeuf brisé';
   eggImage.setAttribute('aria-disabled', 'true');
-  eggResult.textContent = `Rareté obtenue : ${eggRarities[rarityIndex]} (+${reward} pièces)`;
+  eggResult.textContent = `Pipis gagnés : +${reward} pièces`;
   setTimeout(() => {
     if (!eggState.open) return;
     eggImage.src = eggTextures.left;
@@ -615,10 +623,17 @@ function hitEgg() {
   void eggImage.offsetWidth;
   eggImage.classList.add('egg-impact');
   eggState.hits += 1;
+  const reward = getEggRewardForLevel(eggState.hits);
   const stage = Math.min(3, Math.floor(eggState.hits / 3));
   setEggStage(stage);
   if (eggState.hits % 3 === 0 && stage > 0) showEggShard(stage);
-  if (Math.random() < eggBreakChance || eggState.hits === 12) breakEgg();
+  if (eggState.hits === 12) {
+    eggResult.textContent = `Dernier niveau ! Potentiel : +${reward} pièces`;
+    breakEgg();
+    return;
+  }
+  if (Math.random() < eggBreakChance) breakEgg();
+  else eggResult.textContent = `Gain potentiel : +${reward} pièces`;
 }
 
 const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: session.character };
@@ -887,6 +902,10 @@ function update(delta) {
   const moving = movementStrength > .08;
   localPlayer.moving = moving;
   localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
+  if (localPlayer.speech && localPlayer.speechUntil <= performance.now()) {
+    localPlayer.speech = '';
+    localPlayer.speechUntil = 0;
+  }
   if (moving) {
     const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
     localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
@@ -896,6 +915,10 @@ function update(delta) {
   }
   const smoothing = 1 - Math.exp(-delta / 85);
   remotePlayers.forEach((player) => {
+    if (player.speech && player.speechUntil <= performance.now()) {
+      player.speech = '';
+      player.speechUntil = 0;
+    }
     const previousX = player.x;
     const previousY = player.y;
     player.x += (player.targetX - player.x) * smoothing;
@@ -922,6 +945,8 @@ function sendState() {
       direction: localPlayer.direction,
       moving: localPlayer.moving,
       character: localPlayer.character,
+      speech: localPlayer.speech || '',
+      speechUntil: Number.isFinite(localPlayer.speechUntil) ? localPlayer.speechUntil : 0,
     },
   };
   if (isHost) broadcast(payload);
@@ -988,8 +1013,12 @@ function renderSkinLibrary() {
     const preview = document.createElement('img');
     preview.className = 'skin-preview';
     preview.dataset.skinId = skin.id;
-    const previewPath = skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' : `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`;
-    preview.src = skin.preview || `${previewPath}_down2.png`;
+    const previewPath = skin.preview || (
+      skin.id === 'frisk' ? 'frisk' :
+      skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' :
+      `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`
+    );
+    preview.src = `${previewPath}_down2.png`;
     preview.alt = skin.label;
     const details = document.createElement('div');
     details.className = 'skin-details';
@@ -1058,8 +1087,8 @@ function receive(connection, payload) {
     const previous = remotePlayers.get(payload.player.id);
     const player = {
       ...payload.player,
-      speech: previous?.speech || '',
-      speechUntil: previous?.speechUntil || 0,
+      speech: payload.player.speech ?? previous?.speech ?? '',
+      speechUntil: Number.isFinite(payload.player.speechUntil) ? payload.player.speechUntil : (previous?.speechUntil ?? 0),
       x: previous?.x ?? payload.player.x,
       y: previous?.y ?? payload.player.y,
       targetX: payload.player.x,
@@ -1168,16 +1197,36 @@ function connectToHost(hostId) {
   peer.on('error', () => {});
 }
 
+function resetJoystickPosition() {
+  joystick.style.left = '28px';
+  joystick.style.top = 'auto';
+  joystick.style.bottom = '24px';
+  joystick.style.right = 'auto';
+  stick.style.transform = 'translate(0, 0)';
+}
+
 function setJoystick(event) {
   const rect = joystick.getBoundingClientRect();
   const radius = rect.width / 2;
-  const distanceX = event.clientX - (rect.left + radius);
-  const distanceY = event.clientY - (rect.top + radius);
+  const centerX = rect.left + radius;
+  const centerY = rect.top + radius;
+  const distanceX = event.clientX - centerX;
+  const distanceY = event.clientY - centerY;
   const distance = Math.min(Math.hypot(distanceX, distanceY), radius - 26);
   const angle = Math.atan2(distanceY, distanceX);
   joystickInput.x = Math.cos(angle) * distance / (radius - 26);
   joystickInput.y = Math.sin(angle) * distance / (radius - 26);
   stick.style.transform = `translate(${joystickInput.x * (radius - 26)}px, ${joystickInput.y * (radius - 26)}px)`;
+}
+
+function moveJoystickTo(clientX, clientY) {
+  const rect = joystick.getBoundingClientRect();
+  const left = Math.min(Math.max(clientX - rect.width / 2, 12), window.innerWidth - rect.width - 12);
+  const top = Math.min(Math.max(clientY - rect.height / 2, 12), window.innerHeight - rect.height - 12);
+  joystick.style.left = `${left}px`;
+  joystick.style.top = `${top}px`;
+  joystick.style.bottom = 'auto';
+  joystick.style.right = 'auto';
 }
 
 function updateCameraZoom(nextZoom) {
@@ -1213,10 +1262,27 @@ function releaseZoomPointer(event) {
 canvas.addEventListener('pointerup', releaseZoomPointer);
 canvas.addEventListener('pointercancel', releaseZoomPointer);
 
-joystick.addEventListener('pointerdown', (event) => { joystickInput.active = true; joystickInput.pointerId = event.pointerId; joystick.setPointerCapture(event.pointerId); setJoystick(event); });
-joystick.addEventListener('pointermove', (event) => { if (joystickInput.active && event.pointerId === joystickInput.pointerId) setJoystick(event); });
-function releaseJoystick() { joystickInput.active = false; joystickInput.x = 0; joystickInput.y = 0; stick.style.transform = 'translate(0, 0)'; }
-joystick.addEventListener('pointerup', releaseJoystick); joystick.addEventListener('pointercancel', releaseJoystick);
+window.addEventListener('pointerdown', (event) => {
+  if (event.pointerType !== 'touch') return;
+  if (event.target instanceof Element && event.target.closest('button, input, textarea, select')) return;
+  if (joystickInput.active && joystickInput.pointerId !== null && event.pointerId !== joystickInput.pointerId) return;
+  joystickInput.active = true;
+  joystickInput.pointerId = event.pointerId;
+  moveJoystickTo(event.clientX, event.clientY);
+  setJoystick(event);
+}, { passive: true });
+window.addEventListener('pointermove', (event) => {
+  if (joystickInput.active && event.pointerId === joystickInput.pointerId) setJoystick(event);
+}, { passive: true });
+function releaseJoystick() {
+  joystickInput.active = false;
+  joystickInput.pointerId = null;
+  joystickInput.x = 0;
+  joystickInput.y = 0;
+  resetJoystickPosition();
+}
+window.addEventListener('pointerup', releaseJoystick, { passive: true });
+window.addEventListener('pointercancel', releaseJoystick, { passive: true });
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     if (!skinModal.hidden) { closeSkinLibrary(); return; }

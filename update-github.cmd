@@ -32,14 +32,23 @@ if errorlevel 1 (
   echo Aucun changement local a committer.
 )
 
+set "BRANCH="
+for /f "delims=" %%B in ('"%GIT%" rev-parse --abbrev-ref HEAD 2^>nul') do set "BRANCH=%%B"
+if not defined BRANCH set "BRANCH=main"
+"%GIT%" rev-parse --verify main >nul 2>&1
+if errorlevel 1 (
+  "%GIT%" rev-parse --verify master >nul 2>&1
+  if not errorlevel 1 set "BRANCH=master"
+)
+
 echo.
 echo Recuperation des changements GitHub...
-"%GIT%" pull --rebase origin main
+"%GIT%" pull --rebase origin "%BRANCH%"
 if errorlevel 1 goto :failed
 
 echo.
 echo Envoi vers GitHub...
-"%GIT%" push origin main
+"%GIT%" push origin "%BRANCH%"
 if errorlevel 1 goto :failed
 
 echo.

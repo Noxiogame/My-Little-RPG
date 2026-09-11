@@ -115,6 +115,11 @@ const skinPaths = {
   villager: { folder: 'Villageois', prefix: 'villager' },
 };
 
+const characterSprites = Object.fromEntries(
+  Object.keys(skinPaths).map((character) => [character, Object.fromEntries(directions.map((direction) => [direction, []]))]),
+);
+const spriteLoadPromises = new Map();
+
 function createSprite(character, direction, frame) {
   const image = new Image();
   const skin = skinPaths[character] || skinPaths.noelle;
@@ -129,42 +134,37 @@ function getSpriteFrameCount(character, direction) {
   return Array.isArray(frames) ? frames.length : 0;
 }
 
-async function probeSpriteFrame(character, direction, frame) {
+function probeSpriteFrame(character, direction, frame) {
   return new Promise((resolve) => {
-    const sprite = createSprite(character, direction, frame);
-    const done = (valid) => resolve({ valid, sprite: valid ? sprite : null });
-    const onLoad = () => {
-      if (sprite.complete && sprite.naturalWidth > 0) done(true);
-      else done(false);
-    };
-    sprite.addEventListener('load', onLoad, { once: true });
-    sprite.addEventListener('error', () => done(false), { once: true });
-    if (sprite.complete && sprite.naturalWidth > 0) done(true);
+    const image = createSprite(character, direction, frame);
+    const finalize = () => resolve(image.complete && image.naturalWidth > 0 ? image : null);
+    image.addEventListener('load', finalize, { once: true });
+    image.addEventListener('error', () => resolve(null), { once: true });
+    if (image.complete) finalize();
   });
 }
 
-async function loadCharacterSprites() {
+async function loadCharacterSpriteDirection(character, direction) {
+  const frames = [];
   const maxFrames = 12;
-  for (const character of Object.keys(skinPaths)) {
-    const spritesByDirection = {};
-    for (const direction of directions) {
-      const frames = [];
-      for (let frame = 1; frame <= maxFrames; frame += 1) {
-        const { valid, sprite } = await probeSpriteFrame(character, direction, frame);
-        if (!valid || !sprite) break;
-        frames.push(sprite);
-      }
-      spritesByDirection[direction] = frames;
-    }
-    characterSprites[character] = spritesByDirection;
+  for (let frame = 1; frame <= maxFrames; frame += 1) {
+    const sprite = await probeSpriteFrame(character, direction, frame);
+    if (!sprite) break;
+    frames.push(sprite);
   }
+  characterSprites[character][direction] = frames;
+  return frames;
 }
 
-const characterSprites = Object.fromEntries(
-  Object.keys(skinPaths).map((character) => [character, Object.fromEntries(directions.map((direction) => [direction, []]))]),
-);
-
-loadCharacterSprites();
+function ensureCharacterSprites(character) {
+  if (!character || !characterSprites[character]) return Promise.resolve(characterSprites[character]);
+  if (spriteLoadPromises.has(character)) return spriteLoadPromises.get(character);
+  const loadPromise = Promise.all(directions.map((direction) => loadCharacterSpriteDirection(character, direction)))
+    .then((results) => Object.fromEntries(directions.map((direction, index) => [direction, results[index]])))
+    .finally(() => spriteLoadPromises.delete(character));
+  spriteLoadPromises.set(character, loadPromise);
+  return loadPromise;
+}
 
 function getAnimationFrameIndex(player, frames = []) {
   if (!player?.moving || !player?.character || !Array.isArray(frames) || frames.length === 0) return 0;
@@ -181,7 +181,10 @@ function updateSkinLibraryAnimations() {
     const skinId = preview.dataset.skinId;
     const selectedSprites = characterSprites[skinId] || characterSprites.noelle;
     const frames = selectedSprites.down || [];
-    if (!frames.length) return;
+    if (!frames.length) {
+      ensureCharacterSprites(skinId);
+      return;
+    }
     const frameCount = frames.length;
     const frameIndex = Math.floor(animationTime / 180) % frameCount;
     const image = frames[frameIndex] || frames[0];
@@ -724,7 +727,10 @@ function worldToScreen(x, y) {
 function drawPlayer(player, isLocal = false) {
   const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
   const imageFrames = selectedSprites?.[player.direction] || selectedSprites?.down || [];
-  if (!Array.isArray(imageFrames) || imageFrames.length === 0) return;
+  if (!Array.isArray(imageFrames) || imageFrames.length === 0) {
+    ensureCharacterSprites(player.character);
+    return;
+  }
   const frame = getAnimationFrameIndex(player, imageFrames);
   const image = imageFrames[frame] || imageFrames[0];
   if (!image) return;

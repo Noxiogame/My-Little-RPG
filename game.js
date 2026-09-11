@@ -111,7 +111,7 @@ const houseTextures = {
 };
 const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((name) => {
   const image = new Image();
-  image.src = `Noelle/talkbox_ui_${name}.png`;
+  image.src = `Characters/Noelle/talkbox_ui_${name}.png`;
   image.addEventListener('load', () => requestAnimationFrame(draw));
   return [name, image];
 }));
@@ -119,20 +119,20 @@ const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((n
 const directions = ['down', 'left', 'right', 'up'];
 
 const skinPaths = {
-  noelle: { folder: 'Noelle', prefix: 'noelle' },
-  'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
-  frisk: { folder: 'Frisk', prefix: 'frisk' },
-  spamton: { folder: 'Spamton', prefix: 'spamton' },
-  temmie: { folder: 'Temmie', prefix: 'temmie' },
-  asgore: { folder: 'Asgore', prefix: 'asgore' },
-  jevil: { folder: 'Jevil', prefix: 'jevil' },
-  papyrus: { folder: 'Papyrus', prefix: 'papyrus' },
-  sans: { folder: 'Sans', prefix: 'sans' },
-  undyne: { folder: 'Undyne', prefix: 'undyne' },
-  foxy: { folder: 'Foxy', prefix: 'foxy' },
-  pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
-  villager: { folder: 'Villageois', prefix: 'villager' },
-  'rouxls-kaard': { folder: '', prefix: 'rouxls_kaard' },
+  noelle: { folder: 'Characters/Noelle', prefix: 'noelle' },
+  'noelle-alt': { folder: 'Characters/Noelle/Alt', prefix: 'noelle_alt' },
+  frisk: { folder: 'Characters/Frisk', prefix: 'frisk' },
+  spamton: { folder: 'Characters/Spamton', prefix: 'spamton' },
+  temmie: { folder: 'Characters/Temmie', prefix: 'temmie' },
+  asgore: { folder: 'Characters/Asgore', prefix: 'asgore' },
+  jevil: { folder: 'Characters/Jevil', prefix: 'jevil' },
+  papyrus: { folder: 'Characters/Papyrus', prefix: 'papyrus' },
+  sans: { folder: 'Characters/Sans', prefix: 'sans' },
+  undyne: { folder: 'Characters/Undyne', prefix: 'undyne' },
+  foxy: { folder: 'Characters/Foxy', prefix: 'foxy' },
+  pikachu: { folder: 'Characters/Pikachu', prefix: 'pikachu' },
+  villager: { folder: 'Characters/Villageois', prefix: 'villager' },
+  'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
 };
 
 const characterSprites = Object.fromEntries(
@@ -1132,11 +1132,8 @@ function renderSkinLibrary() {
     const preview = document.createElement('img');
     preview.className = 'skin-preview';
     preview.dataset.skinId = skin.id;
-    const previewPath = skin.preview || (
-      skin.id === 'frisk' ? 'Frisk/frisk' :
-      skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' :
-      `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`
-    );
+    const skinConfig = skinPaths[skin.id] || skinPaths.noelle;
+    const previewPath = skin.preview || `${skinConfig.folder}/${skinConfig.prefix}`;
     preview.src = `${previewPath}_down2.png`;
     preview.alt = skin.label;
     const details = document.createElement('div');

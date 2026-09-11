@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#101b1a" />
-    <meta name="app-version" content="2026.09.11.213000" />
+    <meta name="app-version" content="2026.09.12.093000" />
     <title>La Prairie</title>
-    <link rel="stylesheet" href="style.css?v=2026.09.11.213000" />
+    <link rel="stylesheet" href="style.css?v=2026.09.12.093000" />
   </head>
   <body>
     <main class="game-shell">
       <canvas id="game" aria-label="Prairie de Noelle"></canvas>
+      <div id="screen-fade" class="screen-fade" aria-hidden="true"></div>
       <div id="speech-bubbles" class="speech-bubbles" aria-live="polite"></div>
       <button id="egg-reward" class="egg-reward" type="button" aria-label="Ouvrir l'oeuf de récompense" title="Oeuf de récompense">
         <img src="Tilesets/pipis.png" alt="Oeuf de récompense" />
@@ -52,7 +53,7 @@
       </section>
 
       <header class="hud">
-        <div id="app-version-badge" class="app-version-badge" aria-live="polite">v2026.09.11.213000</div>
+        <div id="app-version-badge" class="app-version-badge" aria-live="polite">v2026.09.12.093000</div>
         <button id="reload-button" class="icon-button reload-button" type="button" aria-label="Réactualiser le jeu" title="Réactualiser">↻</button>
         <button id="chat-toggle" class="icon-button chat-toggle" type="button" aria-label="Ouvrir le tchat" title="Tchat" aria-expanded="false">
           <span class="chat-icon" aria-hidden="true"></span>
@@ -124,6 +125,6 @@
 
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script src="game.js?v=2026.09.11.213000"></script>
+    <script src="game.js?v=2026.09.12.093000"></script>
   </body>
 </html>

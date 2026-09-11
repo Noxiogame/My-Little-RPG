@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.213000';
+const APP_VERSION = '2026.09.12.093000';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -202,6 +202,8 @@ const houseTextures = {
   house2: loadAssetImage('Houses/house2.png'),
   house3: loadAssetImage('Houses/house3.png'),
 };
+const interiorFloorTexture = loadAssetImage('Tilesets/floor.png');
+const screenFade = document.querySelector('#screen-fade');
 const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((name) => {
   const image = new Image();
   image.src = `Characters/Noelle/talkbox_ui_${name}.png`;
@@ -862,7 +864,7 @@ function getPlayerAnimationOffset(playerId = '') {
   return (hash % 3000) + 1;
 }
 
-const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`) };
+const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0 };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -910,7 +912,162 @@ function updateHouseStructureBounds() {
     structure.hitbox.right = structure.anchorX + structure.baseWidth / 2;
     structure.hitbox.top = structure.anchorY - structure.baseHeight;
     structure.hitbox.bottom = structure.anchorY;
+    if (!structure.doorZone) structure.doorZone = { left: 0, right: 0, top: 0, bottom: 0 };
+    const doorHalfWidth = Math.max(22, Math.min(28, structure.baseWidth * .26));
+    structure.doorZone.left = structure.anchorX - doorHalfWidth;
+    structure.doorZone.right = structure.anchorX + doorHalfWidth;
+    // `top` sits a couple pixels above the wall's bottom edge so the doorway
+    // gap in collidesWithHouseAt overlaps it cleanly; `bottom` gives enough
+    // depth for the player's position to land inside the zone while walking.
+    structure.doorZone.top = structure.anchorY - 2;
+    structure.doorZone.bottom = structure.anchorY + 18;
+    structure.exitSpawn = { x: structure.anchorX, y: structure.anchorY + 34 };
   });
+}
+
+// --- Interieur des maisons -------------------------------------------------
+const ROOM_COLS = 5;
+const ROOM_ROWS = 4;
+const ROOM_ZOOM = 2.6;
+const ROOM_PLAYER_RADIUS = 7;
+const roomPixel = { width: ROOM_COLS * TILE_SIZE, height: ROOM_ROWS * TILE_SIZE };
+const doorTileColumn = Math.floor(ROOM_COLS / 2);
+const doorZoneRoom = {
+  left: doorTileColumn * TILE_SIZE + TILE_SIZE * .2,
+  right: (doorTileColumn + 1) * TILE_SIZE - TILE_SIZE * .2,
+};
+const transitionState = { active: false, pending: null };
+
+function fadeTransition(onMidpoint) {
+  return new Promise((resolve) => {
+    if (!screenFade || !(screenFade instanceof Element)) {
+      onMidpoint();
+      resolve();
+      return;
+    }
+    screenFade.classList.add('is-active');
+    setTimeout(() => {
+      onMidpoint();
+      setTimeout(() => {
+        screenFade.classList.remove('is-active');
+        resolve();
+      }, 60);
+    }, 380);
+  });
+}
+
+function enterHouse(structure) {
+  if (transitionState.active || localPlayer.insideHouse || !structure || !structure.doorZone) return;
+  transitionState.active = true;
+  fadeTransition(() => {
+    localPlayer.insideHouse = structure.id;
+    localPlayer.roomX = doorTileColumn * TILE_SIZE + TILE_SIZE / 2;
+    localPlayer.roomY = roomPixel.height - TILE_SIZE * .6;
+    localPlayer.direction = 'up';
+    localPlayer.moving = false;
+  }).then(() => { transitionState.active = false; });
+}
+
+function exitHouse() {
+  const structure = houseStructures.find((house) => house.id === localPlayer.insideHouse);
+  if (transitionState.active || !structure) return;
+  transitionState.active = true;
+  fadeTransition(() => {
+    localPlayer.insideHouse = null;
+    localPlayer.x = structure.exitSpawn?.x ? structure.exitSpawn.x / worldSize.width : localPlayer.x;
+    localPlayer.y = structure.exitSpawn?.y ? structure.exitSpawn.y / worldSize.height : localPlayer.y;
+    localPlayer.direction = 'down';
+    localPlayer.moving = false;
+  }).then(() => { transitionState.active = false; });
+}
+
+function updateInside(delta) {
+  const vector = inputVector();
+  const movementStrength = Math.hypot(vector.x, vector.y);
+  const moving = movementStrength > .08;
+  localPlayer.moving = moving;
+  localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
+  if (!moving) return;
+  const distance = PLAYER_SPEED * delta / 1000;
+  let nextX = localPlayer.roomX + vector.x * distance;
+  let nextY = localPlayer.roomY + vector.y * distance;
+  const minX = TILE_SIZE * .5 + ROOM_PLAYER_RADIUS;
+  const maxX = roomPixel.width - TILE_SIZE * .5 - ROOM_PLAYER_RADIUS;
+  const minY = TILE_SIZE * .5 + ROOM_PLAYER_RADIUS;
+  const inDoorway = nextX > doorZoneRoom.left && nextX < doorZoneRoom.right;
+  const maxY = inDoorway ? roomPixel.height + TILE_SIZE - ROOM_PLAYER_RADIUS * .5 : roomPixel.height - TILE_SIZE * .5 - ROOM_PLAYER_RADIUS;
+  nextX = Math.max(minX, Math.min(maxX, nextX));
+  nextY = Math.max(minY, Math.min(maxY, nextY));
+  localPlayer.roomX = nextX;
+  localPlayer.roomY = nextY;
+  if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
+  else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
+  if (nextY > roomPixel.height + TILE_SIZE * .55 && inDoorway) exitHouse();
+}
+
+function roomToScreen(px, py) {
+  return {
+    x: viewport.width / 2 + (px - roomPixel.width / 2) * ROOM_ZOOM,
+    y: viewport.height / 2 + (py - roomPixel.height / 2) * ROOM_ZOOM,
+  };
+}
+
+function drawInteriorPlayer(player, isLocal = false) {
+  const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
+  const imageFrames = selectedSprites?.[player.direction] || selectedSprites?.down || [];
+  if (!Array.isArray(imageFrames) || imageFrames.length === 0) { ensureCharacterSprites(player.character); return; }
+  const frame = getAnimationFrameIndex(player, imageFrames);
+  const image = imageFrames[frame] || imageFrames[0];
+  if (!image) return;
+  const width = (image.naturalWidth || 23) * ROOM_ZOOM;
+  const height = (image.naturalHeight || 47) * ROOM_ZOOM;
+  const position = roomToScreen(player.roomX ?? roomPixel.width / 2, player.roomY ?? roomPixel.height / 2);
+  const x = position.x;
+  const y = position.y + 4;
+  context.save();
+  context.globalAlpha = isLocal ? 1 : .9;
+  context.fillStyle = 'rgba(10, 26, 24, .26)';
+  context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
+  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + 3, width, height);
+  context.restore();
+  drawSpeechBubble(player, x, y - height - 5);
+}
+
+function drawInterior() {
+  const { width, height } = viewport;
+  context.fillStyle = '#04070a';
+  context.fillRect(0, 0, width, height);
+
+  const floorReady = interiorFloorTexture.complete && interiorFloorTexture.naturalWidth > 0;
+  for (let row = 0; row < ROOM_ROWS; row += 1) {
+    for (let column = 0; column < ROOM_COLS; column += 1) {
+      const position = roomToScreen(column * TILE_SIZE, row * TILE_SIZE);
+      const size = TILE_SIZE * ROOM_ZOOM;
+      if (floorReady) context.drawImage(interiorFloorTexture, position.x, position.y, size, size);
+      else { context.fillStyle = '#8a6f4f'; context.fillRect(position.x, position.y, size, size); }
+    }
+  }
+  // Case de sortie qui depasse en bas, au centre.
+  const doorPosition = roomToScreen(doorTileColumn * TILE_SIZE, ROOM_ROWS * TILE_SIZE);
+  const doorSize = TILE_SIZE * ROOM_ZOOM;
+  if (floorReady) context.drawImage(interiorFloorTexture, doorPosition.x, doorPosition.y, doorSize, doorSize);
+  else { context.fillStyle = '#8a6f4f'; context.fillRect(doorPosition.x, doorPosition.y, doorSize, doorSize); }
+  context.save();
+  context.globalAlpha = .5;
+  context.fillStyle = '#101b1a';
+  context.fillRect(doorPosition.x, doorPosition.y, doorSize, doorSize * .3);
+  context.restore();
+
+  const insidePlayers = [
+    ...[...remotePlayers.values()].filter((player) => player.insideHouse === localPlayer.insideHouse),
+    { ...localPlayer, isLocal: true },
+  ].sort((first, second) => (first.roomY ?? 0) - (second.roomY ?? 0));
+  insidePlayers.forEach((player) => drawInteriorPlayer(player, player.isLocal === true));
+
+  context.fillStyle = 'rgba(247,241,222,.35)';
+  context.font = '11px DM Mono, monospace';
+  context.textAlign = 'left';
+  context.fillText('Intérieur — sors par le bas', 30, height - 30);
 }
 
 function createWorldMap() {
@@ -1137,8 +1294,9 @@ function drawSpeechBubble(player, anchorX, anchorY) {
 }
 
 function draw() {
+  if (localPlayer.insideHouse) { drawInterior(); syncSpeechBubbles([]); return; }
   drawWorld();
-  const players = [...remotePlayers.values(), { ...localPlayer, isLocal: true }];
+  const players = [...[...remotePlayers.values()].filter((player) => !player.insideHouse), { ...localPlayer, isLocal: true }];
 
   const drawables = [
     ...houseStructures.map((structure) => ({
@@ -1224,31 +1382,53 @@ function collidesWithHouseAt(x, y, radiusX = 16, radiusY = 12) {
   const localTop = y * worldSize.height - radiusY;
   const localBottom = y * worldSize.height + radiusY;
   return houseStructures.some((house) => {
+    if (!house?.hitbox) return false;
     const houseHitbox = house.hitbox;
-    return localLeft < houseHitbox.right && localRight > houseHitbox.left && localTop < houseHitbox.bottom && localBottom > houseHitbox.top;
+    const doorZone = house.doorZone;
+    // The door column has no bottom wall: once the movement rectangle is
+    // entirely within the door's x-range, the collision bottom is raised to
+    // the doorway's top edge instead of the full house bottom, opening a gap
+    // the player can actually walk through to reach the door trigger zone.
+    const withinDoorway = doorZone && localLeft > doorZone.left && localRight < doorZone.right;
+    const collisionBottom = withinDoorway ? doorZone.top : houseHitbox.bottom;
+    return localLeft < houseHitbox.right && localRight > houseHitbox.left && localTop < collisionBottom && localBottom > houseHitbox.top;
   });
 }
 
 function update(delta) {
-  const vector = inputVector();
-  const movementStrength = Math.hypot(vector.x, vector.y);
-  const moving = movementStrength > .08;
-  localPlayer.moving = moving;
-  localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
   if (localPlayer.speech && localPlayer.speechUntil <= performance.now()) {
     localPlayer.speech = '';
     localPlayer.speechUntil = 0;
   }
-  if (moving) {
-    const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
-    const nextX = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
-    const nextY = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height));
-    const xBlocked = collidesWithHouseAt(nextX, localPlayer.y, 16, 11);
-    if (!xBlocked) localPlayer.x = nextX;
-    const yBlocked = collidesWithHouseAt(localPlayer.x, nextY, 12, 16);
-    if (!yBlocked) localPlayer.y = nextY;
-    if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
-    else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
+  if (localPlayer.insideHouse) {
+    if (!transitionState.active) updateInside(delta);
+  } else if (transitionState.active) {
+    localPlayer.moving = false;
+  } else {
+    const vector = inputVector();
+    const movementStrength = Math.hypot(vector.x, vector.y);
+    const moving = movementStrength > .08;
+    localPlayer.moving = moving;
+    localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
+    if (moving) {
+      const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
+      const nextX = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
+      const nextY = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height));
+      const xBlocked = collidesWithHouseAt(nextX, localPlayer.y, 16, 11);
+      if (!xBlocked) localPlayer.x = nextX;
+      const yBlocked = collidesWithHouseAt(localPlayer.x, nextY, 12, 16);
+      if (!yBlocked) localPlayer.y = nextY;
+      if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
+      else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
+    }
+    const playerPixelX = localPlayer.x * worldSize.width;
+    const playerPixelY = localPlayer.y * worldSize.height;
+    const doorHouse = houseStructures.find((house) => {
+      const zone = house?.doorZone;
+      if (!zone) return false;
+      return playerPixelX > zone.left && playerPixelX < zone.right && playerPixelY > zone.top && playerPixelY < zone.bottom;
+    });
+    if (doorHouse) enterHouse(doorHouse);
   }
   const smoothing = 1 - Math.exp(-delta / 85);
   remotePlayers.forEach((player) => {
@@ -1284,6 +1464,9 @@ function sendState() {
       character: localPlayer.character,
       speech: localPlayer.speech || '',
       speechUntil: Number.isFinite(localPlayer.speechUntil) ? localPlayer.speechUntil : 0,
+      insideHouse: localPlayer.insideHouse || null,
+      roomX: localPlayer.roomX || 0,
+      roomY: localPlayer.roomY || 0,
     },
   };
   if (isHost) broadcast(payload);

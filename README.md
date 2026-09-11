@@ -16,6 +16,10 @@ Les tuiles de `Tilesets/Grass/` (`grass_XXXX.png`) et `Tilesets/Road/` (`roadXXX
 
 La presence utilise PeerJS/WebRTC depuis un CDN, sans serveur applicatif a maintenir. Le jeu repasse automatiquement en mode solo si le service PeerJS ou le salon ne sont pas disponibles.
 
+## Entrer dans une maison
+
+En marchant sur la hitbox en bas-centre d'une maison, une transition en fondu noir amene vers une petite piece interieure (sol en tuiles `Tilesets/floor.png`, entourage noir). On ne peut pas traverser les murs de la piece. La case du bas qui depasse est le pas de porte : y marcher declenche le fondu de sortie et replace le joueur devant la maison. Chaque maison est une zone a part : seuls les joueurs entres dans la meme maison s'y voient entre eux ; ils redeviennent visibles aux autres joueurs de la prairie en ressortant. Necessite l'image `Tilesets/floor.png` (une tuile de sol simple, sans masque de bordure).
+
 ## Oeuf de recompense
 
 L'icone Pipis en haut de l'ecran ouvre l'oeuf au centre. Chaque oeuf peut recevoir jusqu'a 12 frappes, avec un palier tous les 3 clics et un shard affiche a chaque palier. Chaque frappe a 20 % de chance de casser l'oeuf avant la fin ; la rarete obtenue depend du palier atteint : commune, non commun, rare ou legendaire. Le douzieme coup casse toujours l'oeuf s'il a tenu jusque-la.

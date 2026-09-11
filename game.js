@@ -541,7 +541,10 @@ function sendState() {
   else if (hostConnection?.open) hostConnection.send(payload);
 }
 
+let versionCheckPromise = null;
 async function checkForNewVersion() {
+  if (versionCheckPromise) return versionCheckPromise;
+  versionCheckPromise = (async () => {
   try {
     const response = await fetch(`index.html?version-check=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) return;
@@ -550,7 +553,11 @@ async function checkForNewVersion() {
     if (version && version !== APP_VERSION) window.location.reload();
   } catch {
     // The game remains playable when version checks are unavailable.
+  } finally {
+    versionCheckPromise = null;
   }
+  })();
+  return versionCheckPromise;
 }
 
 function broadcast(payload, exceptId = null) {
@@ -824,6 +831,10 @@ window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
 window.addEventListener('pagehide', sendLeave);
 window.addEventListener('beforeunload', sendLeave);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkForNewVersion();
+});
+window.addEventListener('pageshow', checkForNewVersion);
 chatForm.addEventListener('submit', sendChatMessage);
 characterSwitch.addEventListener('click', openSkinLibrary);
 eggReward.addEventListener('click', openEgg);

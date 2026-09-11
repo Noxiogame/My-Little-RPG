@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.13';
+const APP_VERSION = '2026.09.11.18';
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -71,12 +71,15 @@ let cameraZoom = 1.35;
 const PLAYER_SPEED = 100;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
-const tileTextures = { grass: {}, road: {} };
+const SIDEWALK_TEXTURE_NAMES = ['0001', '0010', '0011', '0100', '0101', '0110', '1000', '1001', '1010', '1100'];
+const tileTextures = { grass: {}, road: {}, sidewalk: {} };
 
 function loadTileTexture(type, mask, variation = '') {
   const image = new Image();
   const separator = type === 'grass' ? '_' : '';
-  image.src = `Tilesets/${type === 'grass' ? 'Grass' : 'Road'}/${type}${separator}${mask}${variation}.png`;
+  const folder = type === 'grass' ? 'Grass' : type === 'sidewalk' ? '' : 'Road';
+  const fileName = type === 'sidewalk' ? `sidewalk${mask}${variation}.png` : `${type}${separator}${mask}${variation}.png`;
+  image.src = type === 'grass' || type === 'road' ? `Tilesets/${folder}/${fileName}` : `${fileName}`;
   image.addEventListener('load', () => requestAnimationFrame(draw));
   return image;
 }
@@ -89,9 +92,23 @@ TILE_TEXTURE_NAMES.forEach((mask) => {
     }
   });
 });
+SIDEWALK_TEXTURE_NAMES.forEach((mask) => {
+  tileTextures.sidewalk[mask] = [loadTileTexture('sidewalk', mask)];
+});
 const roadFallback = new Image();
 roadFallback.src = 'Tilesets/Road/road.png';
 roadFallback.addEventListener('load', () => requestAnimationFrame(draw));
+const loadAssetImage = (src) => {
+  const image = new Image();
+  image.src = src;
+  image.addEventListener('load', () => requestAnimationFrame(draw));
+  return image;
+};
+const houseTextures = {
+  house: loadAssetImage('Houses/house.png'),
+  house2: loadAssetImage('Houses/house2.png'),
+  house3: loadAssetImage('Houses/house3.png'),
+};
 const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((name) => {
   const image = new Image();
   image.src = `Noelle/talkbox_ui_${name}.png`;
@@ -104,7 +121,7 @@ const directions = ['down', 'left', 'right', 'up'];
 const skinPaths = {
   noelle: { folder: 'Noelle', prefix: 'noelle' },
   'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
-  frisk: { folder: '.', prefix: 'frisk' },
+  frisk: { folder: 'Frisk', prefix: 'frisk' },
   spamton: { folder: 'Spamton', prefix: 'spamton' },
   temmie: { folder: 'Temmie', prefix: 'temmie' },
   asgore: { folder: 'Asgore', prefix: 'asgore' },
@@ -173,7 +190,8 @@ function getAnimationFrameIndex(player, frames = []) {
   const frameCount = frames.length;
   const speedRatio = Number.isFinite(player.movementSpeed) ? Math.max(.2, Math.min(1.75, player.movementSpeed)) : 1;
   const frameDuration = 240 / speedRatio;
-  return Math.floor(animationTime / frameDuration) % frameCount;
+  const animationOffset = Number.isFinite(player.animationOffset) ? player.animationOffset : 0;
+  return Math.floor((animationTime + animationOffset) / frameDuration) % frameCount;
 }
 
 function updateSkinLibraryAnimations() {
@@ -636,7 +654,15 @@ function hitEgg() {
   else eggResult.textContent = `Gain potentiel : +${reward} pièces`;
 }
 
-const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: session.character };
+function getPlayerAnimationOffset(playerId = '') {
+  let hash = 0;
+  for (let index = 0; index < playerId.length; index += 1) {
+    hash = (hash * 31 + playerId.charCodeAt(index)) >>> 0;
+  }
+  return (hash % 3000) + 1;
+}
+
+const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`) };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -653,17 +679,76 @@ let viewport = { width: 0, height: 0, dpr: 1 };
 let worldMap = [];
 let worldSize = { width: 0, height: 0 };
 const camera = { x: .5, y: .55 };
+const houseStructures = [
+  { id: 'house-1', texture: houseTextures.house, anchorX: 420, anchorY: 500, baseWidth: 120, baseHeight: 54, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-2', texture: houseTextures.house2, anchorX: 700, anchorY: 500, baseWidth: 128, baseHeight: 58, visualWidth: 128, visualHeight: 104, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-3', texture: houseTextures.house3, anchorX: 980, anchorY: 500, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-4', texture: houseTextures.house2, anchorX: 1280, anchorY: 500, baseWidth: 128, baseHeight: 55, visualWidth: 128, visualHeight: 102, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-5', texture: houseTextures.house, anchorX: 1600, anchorY: 500, baseWidth: 120, baseHeight: 52, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-6', texture: houseTextures.house3, anchorX: 1900, anchorY: 500, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+];
+
+function updateHouseStructureBounds() {
+  houseStructures.forEach((structure) => {
+    const texture = structure.texture && structure.texture.complete && structure.texture.naturalWidth > 0 ? structure.texture : houseTextures.house;
+    structure.visualWidth = texture.naturalWidth > 0 ? texture.naturalWidth : structure.baseWidth;
+    structure.visualHeight = texture.naturalHeight > 0 ? texture.naturalHeight : structure.baseHeight + 48;
+    structure.hitbox.left = structure.anchorX - structure.baseWidth / 2;
+    structure.hitbox.right = structure.anchorX + structure.baseWidth / 2;
+    structure.hitbox.top = structure.anchorY - structure.baseHeight;
+    structure.hitbox.bottom = structure.anchorY;
+  });
+}
 
 function createWorldMap() {
   worldSize = WORLD_SIZE;
   const columns = Math.ceil(worldSize.width / TILE_SIZE) + 1;
   const rows = Math.ceil(worldSize.height / TILE_SIZE) + 1;
   const map = Array.from({ length: rows }, () => Array(columns).fill('grass'));
-  let center = Math.floor(rows * .68);
-  for (let column = 0; column < columns; column += 1) {
-    center = Math.max(3, Math.min(rows - 4, center + (column % 9 === 0 ? (column % 18 === 0 ? -1 : 1) : 0)));
-    for (let offset = -1; offset <= 1; offset += 1) map[center + offset][column] = 'road';
+
+  const roadCenterX = Math.floor(columns * .55);
+  const roadCenterY = Math.floor(rows * .58);
+  const roadWidth = 3;
+  const roadHalfWidth = Math.floor(roadWidth / 2);
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const onHorizontalRoad = Math.abs(row - roadCenterY) <= roadHalfWidth;
+      const onVerticalRoad = Math.abs(column - roadCenterX) <= roadHalfWidth;
+      if (onHorizontalRoad || onVerticalRoad) {
+        map[row][column] = 'road';
+      }
+    }
   }
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      if (map[row][column] === 'road') {
+        const neighbors = [
+          [row - 1, column], [row + 1, column],
+          [row, column - 1], [row, column + 1],
+        ];
+        neighbors.forEach(([targetRow, targetColumn]) => {
+          if (!map[targetRow]?.[targetColumn]) return;
+          if (map[targetRow][targetColumn] === 'grass') map[targetRow][targetColumn] = 'sidewalk';
+        });
+      }
+    }
+  }
+
+  houseStructures.forEach((house) => {
+    const leftTile = Math.max(0, Math.floor((house.anchorX - house.baseWidth / 2) / TILE_SIZE) - 4);
+    const rightTile = Math.min(columns - 1, Math.floor((house.anchorX + house.baseWidth / 2) / TILE_SIZE) + 4);
+    const topTile = Math.max(0, Math.floor((house.anchorY - house.baseHeight) / TILE_SIZE) - 4);
+    const bottomTile = Math.min(rows - 1, Math.floor(house.anchorY / TILE_SIZE) + 4);
+
+    for (let row = topTile; row <= bottomTile; row += 1) {
+      for (let column = leftTile; column <= rightTile; column += 1) {
+        if (map[row]?.[column] === 'road' || map[row]?.[column] === 'sidewalk') map[row][column] = 'grass';
+      }
+    }
+  });
+
   worldMap = map;
 }
 
@@ -673,11 +758,12 @@ function tileMask(column, row, type) {
 }
 
 function closestTexture(type, mask) {
-  const available = TILE_TEXTURE_NAMES.reduce((best, candidate) => {
+  const candidates = type === 'sidewalk' ? SIDEWALK_TEXTURE_NAMES : TILE_TEXTURE_NAMES;
+  const available = candidates.reduce((best, candidate) => {
     const distance = candidate.split('').reduce((total, bit, index) => total + (bit !== mask[index] ? 1 : 0), 0);
     return distance < best.distance ? { mask: candidate, distance } : best;
-  }, { mask: '1111', distance: Number.POSITIVE_INFINITY });
-  return tileTextures[type][available.mask];
+  }, { mask: candidates[0] || '1111', distance: Number.POSITIVE_INFINITY });
+  return tileTextures[type][available.mask] || [];
 }
 
 function tileRandom(column, row, type, mask) {
@@ -688,11 +774,21 @@ function tileRandom(column, row, type, mask) {
 
 function drawTile(type, column, row) {
   const mask = tileMask(column, row, type);
-  const textures = tileTextures[type][mask] || closestTexture(type, mask);
+  const textures = tileTextures[type]?.[mask] || closestTexture(type, mask);
   const availableTextures = textures.filter((image) => image.complete && image.naturalWidth > 0);
-  const image = availableTextures[tileRandom(column, row, type, mask) % availableTextures.length];
+  const image = availableTextures.length > 0 ? availableTextures[tileRandom(column, row, type, mask) % availableTextures.length] : null;
   const x = column * TILE_SIZE;
   const y = row * TILE_SIZE;
+
+  if (type === 'sidewalk') {
+    if (image) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE);
+    else {
+      context.fillStyle = '#c8c5b5';
+      context.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    }
+    return;
+  }
+
   if (image) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE);
   else if (type === 'road' && roadFallback.complete && roadFallback.naturalWidth > 0) context.drawImage(roadFallback, x, y, TILE_SIZE, TILE_SIZE);
   else {
@@ -709,6 +805,18 @@ function resize() {
   context.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
   context.imageSmoothingEnabled = false;
   createWorldMap();
+  updateHouseStructureBounds();
+}
+
+function drawStructure(structure) {
+  const texture = structure?.texture && structure.texture.complete && structure.texture.naturalWidth > 0 ? structure.texture : houseTextures.house;
+  if (!texture || !texture.complete || texture.naturalWidth <= 0) return;
+  const position = worldToScreen(structure.anchorX / worldSize.width, structure.anchorY / worldSize.height);
+  const left = position.x - structure.visualWidth * cameraZoom / 2;
+  const top = position.y - structure.visualHeight * cameraZoom;
+  const width = structure.visualWidth * cameraZoom;
+  const height = structure.visualHeight * cameraZoom;
+  context.drawImage(texture, left, top, width, height);
 }
 
 function drawWorld() {
@@ -828,8 +936,12 @@ function drawSpeechBubble(player, anchorX, anchorY) {
 function draw() {
   drawWorld();
   const players = [...remotePlayers.values(), { ...localPlayer, isLocal: true }];
-  players.sort((first, second) => first.y - second.y);
-  players.forEach((player) => drawPlayer(player, player.isLocal));
+  const drawables = [
+    ...houseStructures.map((structure) => ({ y: structure.anchorY / worldSize.height, draw: () => drawStructure(structure) })),
+    ...players.map((player) => ({ y: player.y, draw: () => drawPlayer(player, player.isLocal) })),
+  ];
+  drawables.sort((first, second) => first.y - second.y);
+  drawables.forEach((item) => item.draw());
   syncSpeechBubbles(players);
 }
 
@@ -896,6 +1008,17 @@ function inputVector() {
   return length > 1 ? { x: x / length, y: y / length } : { x, y };
 }
 
+function collidesWithHouseAt(x, y, radiusX = 16, radiusY = 12) {
+  const localLeft = x * worldSize.width - radiusX;
+  const localRight = x * worldSize.width + radiusX;
+  const localTop = y * worldSize.height - radiusY;
+  const localBottom = y * worldSize.height + radiusY;
+  return houseStructures.some((house) => {
+    const houseHitbox = house.hitbox;
+    return localLeft < houseHitbox.right && localRight > houseHitbox.left && localTop < houseHitbox.bottom && localBottom > houseHitbox.top;
+  });
+}
+
 function update(delta) {
   const vector = inputVector();
   const movementStrength = Math.hypot(vector.x, vector.y);
@@ -908,8 +1031,12 @@ function update(delta) {
   }
   if (moving) {
     const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
-    localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
-    localPlayer.y = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height));
+    const nextX = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
+    const nextY = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height));
+    const xBlocked = collidesWithHouseAt(nextX, localPlayer.y, 16, 11);
+    if (!xBlocked) localPlayer.x = nextX;
+    const yBlocked = collidesWithHouseAt(localPlayer.x, nextY, 12, 16);
+    if (!yBlocked) localPlayer.y = nextY;
     if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
     else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
   }
@@ -1014,7 +1141,7 @@ function renderSkinLibrary() {
     preview.className = 'skin-preview';
     preview.dataset.skinId = skin.id;
     const previewPath = skin.preview || (
-      skin.id === 'frisk' ? 'frisk' :
+      skin.id === 'frisk' ? 'Frisk/frisk' :
       skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' :
       `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`
     );
@@ -1093,6 +1220,7 @@ function receive(connection, payload) {
       y: previous?.y ?? payload.player.y,
       targetX: payload.player.x,
       targetY: payload.player.y,
+      animationOffset: previous?.animationOffset ?? getPlayerAnimationOffset(payload.player.id || connection.peer),
       peerId: connection.peer,
     };
     remotePlayers.set(payload.player.id, player);
@@ -1123,7 +1251,8 @@ function receive(connection, payload) {
     remotePlayers.clear();
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
-      remotePlayers.set(player.id, { ...player, targetX: player.x, targetY: player.y, peerId: connection.peer });
+      const existing = remotePlayers.get(player.id);
+      remotePlayers.set(player.id, { ...player, targetX: player.x, targetY: player.y, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
     }
     });
   }
@@ -1264,6 +1393,7 @@ canvas.addEventListener('pointercancel', releaseZoomPointer);
 
 window.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch') return;
+  if (zoomPointers.size > 0 || event.isPrimary === false) return;
   if (event.target instanceof Element && event.target.closest('button, input, textarea, select')) return;
   if (joystickInput.active && joystickInput.pointerId !== null && event.pointerId !== joystickInput.pointerId) return;
   joystickInput.active = true;
@@ -1272,6 +1402,10 @@ window.addEventListener('pointerdown', (event) => {
   setJoystick(event);
 }, { passive: true });
 window.addEventListener('pointermove', (event) => {
+  if (zoomPointers.size > 0) {
+    if (joystickInput.active) releaseJoystick();
+    return;
+  }
   if (joystickInput.active && event.pointerId === joystickInput.pointerId) setJoystick(event);
 }, { passive: true });
 function releaseJoystick() {

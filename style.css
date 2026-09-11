@@ -67,16 +67,21 @@ button, input { font: inherit; }
 .skin-modal-backdrop { position: absolute; inset: 0; background: rgba(10,18,17,.76); backdrop-filter: blur(3px); }
 .skin-card { position: relative; width: min(440px, calc(100vw - 36px)); padding: 25px 24px 20px; border: 1px solid rgba(247,241,222,.3); background: #182a27; box-shadow: 0 18px 55px rgba(0,0,0,.4); }
 .skin-card h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.skin-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.skin-wallet { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.7); color: var(--ink); font: 11px 'DM Mono', monospace; }
 .skin-intro { margin: 7px 0 15px; color: var(--muted); font-size: 12px; }
 .skin-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; max-height: min(390px, 52vh); overflow-y: auto; padding: 2px; }
 .skin-item { display: grid; grid-template-rows: auto 1fr auto; align-items: center; min-height: 154px; padding: 10px 8px 8px; border: 1px solid var(--line); background: rgba(255,255,255,.035); text-align: center; }
 .skin-item.is-equipped { border-color: var(--mint); background: rgba(185,231,177,.08); }
+.skin-item.is-affordable:not(.is-equipped) { border-color: var(--mint); }
+.skin-item.is-unaffordable:not(.is-equipped) { border-color: rgba(255,126,112,.55); }
 .skin-item img { justify-self: center; width: 52px; height: 66px; object-fit: contain; image-rendering: pixelated; }
 .skin-details { display: grid; gap: 3px; min-width: 0; }
 .skin-details strong { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .skin-details span { color: var(--coral); font: 9px 'DM Mono', monospace; }
 .skin-action { width: 100%; border: 1px solid var(--mint); padding: 7px 4px; background: var(--mint); color: #16322c; cursor: pointer; font: 10px 'DM Mono', monospace; font-weight: 700; }
 .skin-action:disabled { border-color: var(--line); background: transparent; color: var(--muted); cursor: default; }
+.skin-item.is-unaffordable .skin-action { border-color: #ff7e70; background: #ff7e70; color: #351617; }
 .skin-result { min-height: 15px; margin: 12px 0 0; color: var(--coral); font: 11px 'DM Mono', monospace; text-align: center; }
 
 @media (max-width: 420px) {
@@ -87,6 +92,12 @@ button, input { font: inherit; }
 .eyebrow { margin: 0 0 1px; color: var(--mint); font: 500 10px 'DM Mono', monospace; letter-spacing: 2px; }
 .account-button { position: absolute; top: 18px; right: 30px; z-index: 4; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); padding: 6px 9px 6px 6px; background: var(--panel); color: var(--ink); cursor: pointer; font: 10px 'DM Mono', monospace; pointer-events: auto; }
 .account-button:hover, .account-button:focus-visible { border-color: var(--mint); outline: none; }
+.icon-button { position: absolute; top: 18px; z-index: 4; display: grid; place-items: center; width: 39px; height: 39px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; pointer-events: auto; }
+.icon-button:hover, .icon-button:focus-visible { border-color: var(--mint); outline: none; }
+.chat-toggle { right: 145px; }
+.reload-button { right: 194px; font-size: 21px; line-height: 1; }
+.chat-icon { position: relative; width: 17px; height: 13px; border: 2px solid currentColor; border-radius: 4px; }
+.chat-icon::after { content: ''; position: absolute; right: 1px; bottom: -5px; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: skewY(-28deg); background: var(--panel); }
 .account-avatar { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--mint); border-radius: 50%; color: var(--mint); font-size: 12px; }
 .main-menu, .account-modal { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; background: rgba(10,18,17,.84); backdrop-filter: blur(5px); }
 .main-menu[hidden], .account-modal[hidden] { display: none; }
@@ -125,7 +136,8 @@ button, input { font: inherit; }
 .room-controls button { border: 0; padding: 0 12px; background: var(--mint); color: #16322c; cursor: pointer; font-size: 12px; font-weight: 700; }
 .room-controls button:disabled { cursor: wait; opacity: .55; }
 .room-panel p { margin: 9px 0 0; color: #91a79a; font-size: 11px; line-height: 1.35; }
-.chat-panel { position: absolute; z-index: 3; top: 276px; right: 30px; display: flex; flex-direction: column; width: 250px; height: 258px; padding: 14px; border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(12px); }
+.chat-panel { position: absolute; z-index: 3; top: 76px; right: 30px; display: flex; flex-direction: column; width: 250px; height: 258px; padding: 14px; border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(12px); }
+.chat-panel[hidden] { display: none; }
 .chat-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; color: var(--ink); font: 11px 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; }
 .chat-live { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 9px; letter-spacing: 0; text-transform: none; }
 .chat-live span { width: 5px; height: 5px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 7px var(--mint); }
@@ -160,7 +172,10 @@ button, input { font: inherit; }
   .egg-cooldown { top: 158px; min-width: 170px; }
   .coin-wallet { top: 108px; right: 18px; left: auto; }
   .room-panel { top: 116px; right: 18px; left: 18px; width: auto; }
-  .chat-panel { top: auto; right: 14px; bottom: 14px; width: min(250px, calc(100vw - 152px)); height: 218px; padding: 11px; }
+  .chat-toggle { top: 18px; right: 112px; }
+  .reload-button { top: 18px; right: 161px; }
+  .chat-panel { top: 66px; right: 14px; bottom: auto; width: min(300px, calc(100vw - 28px)); height: min(330px, 45dvh); padding: 11px; }
   .hint { display: none; }
-  .joystick { left: 14px; bottom: 14px; width: 116px; height: 116px; }
+  .joystick { left: 12px; bottom: 12px; width: 92px; height: 92px; opacity: .72; }
+  .joystick-stick { width: 40px; height: 40px; }
 }

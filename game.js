@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.10';
+const APP_VERSION = '2026.09.11.11';
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -29,6 +29,10 @@ const skinClose = document.querySelector('#skin-close');
 const skinList = document.querySelector('#skin-list');
 const skinResult = document.querySelector('#skin-result');
 const coinAmount = document.querySelector('#coin-amount');
+const skinCoinAmount = document.querySelector('#skin-coin-amount');
+const chatToggle = document.querySelector('#chat-toggle');
+const chatPanel = document.querySelector('.chat-panel');
+const reloadButton = document.querySelector('#reload-button');
 const mainMenu = document.querySelector('#main-menu');
 const authChoice = document.querySelector('#auth-choice');
 const showLogin = document.querySelector('#show-login');
@@ -337,6 +341,14 @@ function closeAccount() {
   accountModal.hidden = true;
 }
 
+function toggleChat() {
+  const isOpen = !chatPanel.hidden;
+  chatPanel.hidden = isOpen;
+  chatToggle.setAttribute('aria-expanded', String(!isOpen));
+  chatToggle.setAttribute('aria-label', isOpen ? 'Ouvrir le tchat' : 'Fermer le tchat');
+  if (!isOpen) chatInput.focus();
+}
+
 function logoutAccount() {
   const logout = authClient ? authClient.auth.signOut({ scope: 'local' }) : Promise.resolve();
   logout.finally(() => {
@@ -413,6 +425,7 @@ function updateRewardUi() {
   const available = eggState.cooldownUntil <= Date.now();
   eggReward.disabled = !available;
   coinAmount.textContent = session.coins;
+  skinCoinAmount.textContent = session.coins;
   eggCooldown.textContent = available ? 'Disponible' : `Prochain Pipis dans ${formatCooldown()}`;
   if (!available && !eggState.open) eggReward.title = `Prochain Pipis dans ${formatCooldown()}`;
   else eggReward.title = 'Ouvrir le Pipis';
@@ -794,32 +807,6 @@ function sendState() {
   else if (hostConnection?.open) hostConnection.send(payload);
 }
 
-const versionReloadKey = 'noelle-meadow-version-reload-v1';
-let versionCheckPromise = null;
-let lastVersionCheckAt = 0;
-async function checkForNewVersion() {
-  if (versionCheckPromise) return versionCheckPromise;
-  if (Date.now() - lastVersionCheckAt < 60000) return null;
-  lastVersionCheckAt = Date.now();
-  versionCheckPromise = (async () => {
-  try {
-    const response = await fetch(`index.html?version-check=${Date.now()}`, { cache: 'no-store' });
-    if (!response.ok) return;
-    const html = await response.text();
-    const version = html.match(/name=["']app-version["'][^>]*content=["']([^"']+)["']/i)?.[1];
-    if (version && version !== APP_VERSION && sessionStorage.getItem(versionReloadKey) !== version) {
-      sessionStorage.setItem(versionReloadKey, version);
-      window.location.href = `${window.location.pathname}?app-version=${encodeURIComponent(version)}`;
-    }
-  } catch {
-    // The game remains playable when version checks are unavailable.
-  } finally {
-    versionCheckPromise = null;
-  }
-  })();
-  return versionCheckPromise;
-}
-
 function broadcast(payload, exceptId = null) {
   connections.forEach((connection, id) => { if (id !== exceptId && connection.open) connection.send(payload); });
 }
@@ -888,6 +875,8 @@ function renderSkinLibrary() {
     action.type = 'button';
     action.className = 'skin-action';
     action.textContent = equipped ? 'Équipé' : owned ? 'Équiper' : `${skin.price} ¢`;
+    item.classList.toggle('is-affordable', !owned && !equipped && session.coins >= skin.price);
+    item.classList.toggle('is-unaffordable', !owned && !equipped && session.coins < skin.price);
     action.disabled = equipped;
     action.addEventListener('click', () => chooseSkin(skin));
     item.append(details, preview, action);
@@ -1080,12 +1069,10 @@ window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
 window.addEventListener('pagehide', sendLeave);
 window.addEventListener('beforeunload', sendLeave);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') checkForNewVersion();
-});
-window.addEventListener('pageshow', checkForNewVersion);
 chatForm.addEventListener('submit', sendChatMessage);
 accountButton.addEventListener('click', openAccount);
+chatToggle.addEventListener('click', toggleChat);
+reloadButton.addEventListener('click', () => window.location.reload());
 accountClose.addEventListener('click', closeAccount);
 accountModal.querySelector('.account-modal-backdrop').addEventListener('click', closeAccount);
 accountSkins.addEventListener('click', () => { closeAccount(); openSkinLibrary(); });
@@ -1108,9 +1095,9 @@ eggImage.addEventListener('keydown', (event) => {
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
-setInterval(checkForNewVersion, 300000);
-checkForNewVersion();
 updateAccountUi();
+chatPanel.hidden = true;
+chatToggle.setAttribute('aria-expanded', 'false');
 mainMenu.hidden = false;
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { mainMenu.hidden = false; });

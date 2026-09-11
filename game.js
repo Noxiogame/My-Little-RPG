@@ -132,6 +132,7 @@ const skinPaths = {
   foxy: { folder: 'Foxy', prefix: 'foxy' },
   pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
   villager: { folder: 'Villageois', prefix: 'villager' },
+  'rouxls-kaard': { folder: '', prefix: 'rouxls_kaard' },
 };
 
 const characterSprites = Object.fromEntries(
@@ -242,6 +243,7 @@ const skins = [
   { id: 'undyne', label: 'Undyne', rarity: 'Rare', price: 180 },
   { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150 },
   { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400 },
+  { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const accountsStorageKey = 'noelle-meadow-accounts-v1';
@@ -662,7 +664,7 @@ function getPlayerAnimationOffset(playerId = '') {
   return (hash % 3000) + 1;
 }
 
-const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .5, y: .55, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`) };
+const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`) };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -680,12 +682,12 @@ let worldMap = [];
 let worldSize = { width: 0, height: 0 };
 const camera = { x: .5, y: .55 };
 const houseStructures = [
-  { id: 'house-1', texture: houseTextures.house, anchorX: 420, anchorY: 500, baseWidth: 120, baseHeight: 54, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
-  { id: 'house-2', texture: houseTextures.house2, anchorX: 700, anchorY: 500, baseWidth: 128, baseHeight: 58, visualWidth: 128, visualHeight: 104, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
-  { id: 'house-3', texture: houseTextures.house3, anchorX: 980, anchorY: 500, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
-  { id: 'house-4', texture: houseTextures.house2, anchorX: 1280, anchorY: 500, baseWidth: 128, baseHeight: 55, visualWidth: 128, visualHeight: 102, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
-  { id: 'house-5', texture: houseTextures.house, anchorX: 1600, anchorY: 500, baseWidth: 120, baseHeight: 52, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
-  { id: 'house-6', texture: houseTextures.house3, anchorX: 1900, anchorY: 500, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-1', texture: houseTextures.house, anchorX: 420 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 120, baseHeight: 54, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-2', texture: houseTextures.house2, anchorX: 700 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 128, baseHeight: 58, visualWidth: 128, visualHeight: 104, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-3', texture: houseTextures.house3, anchorX: 980 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-4', texture: houseTextures.house2, anchorX: 1280 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 128, baseHeight: 55, visualWidth: 128, visualHeight: 102, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-5', texture: houseTextures.house, anchorX: 1600 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 120, baseHeight: 52, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
+  { id: 'house-6', texture: houseTextures.house3, anchorX: 1900 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
 ];
 
 function updateHouseStructureBounds() {
@@ -723,31 +725,21 @@ function createWorldMap() {
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
-      if (map[row][column] === 'road') {
-        const neighbors = [
-          [row - 1, column], [row + 1, column],
-          [row, column - 1], [row, column + 1],
-        ];
-        neighbors.forEach(([targetRow, targetColumn]) => {
-          if (!map[targetRow]?.[targetColumn]) return;
-          if (map[targetRow][targetColumn] === 'grass') map[targetRow][targetColumn] = 'sidewalk';
-        });
-      }
+      if (map[row][column] !== 'road') continue;
+      const neighbors = [
+        [row - 1, column], [row + 1, column],
+        [row, column - 1], [row, column + 1],
+      ];
+      neighbors.forEach(([targetRow, targetColumn]) => {
+        if (!map[targetRow]?.[targetColumn]) return;
+        if (map[targetRow][targetColumn] === 'grass') map[targetRow][targetColumn] = 'sidewalk';
+      });
     }
   }
 
-  houseStructures.forEach((house) => {
-    const leftTile = Math.max(0, Math.floor((house.anchorX - house.baseWidth / 2) / TILE_SIZE) - 4);
-    const rightTile = Math.min(columns - 1, Math.floor((house.anchorX + house.baseWidth / 2) / TILE_SIZE) + 4);
-    const topTile = Math.max(0, Math.floor((house.anchorY - house.baseHeight) / TILE_SIZE) - 4);
-    const bottomTile = Math.min(rows - 1, Math.floor(house.anchorY / TILE_SIZE) + 4);
-
-    for (let row = topTile; row <= bottomTile; row += 1) {
-      for (let column = leftTile; column <= rightTile; column += 1) {
-        if (map[row]?.[column] === 'road' || map[row]?.[column] === 'sidewalk') map[row][column] = 'grass';
-      }
-    }
-  });
+  // Preserve roads and sidewalks. Houses are drawn on top of the terrain; carving
+  // road tiles here creates visible gaps and breaks the street layout.
+  houseStructures.forEach(() => {});
 
   worldMap = map;
 }

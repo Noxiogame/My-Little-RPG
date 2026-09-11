@@ -1,6 +1,6 @@
 # Noelle's Meadow
 
-Le code du jeu est a la racine du projet. Les dossiers `Noelle/`, `Noelle/Alt/`, `Spamton/`, `Temmie/` et `Asgore/` contiennent les skins ; `Noelle/` contient aussi les textures de talkbox.
+Le code du jeu est a la racine du projet. Les dossiers `Noelle/`, `Noelle/Alt/`, `Spamton/`, `Temmie/`, `Asgore/`, `Rouxls/` et `Villageois/` contiennent les skins ; `Noelle/` contient aussi les textures de talkbox.
 
 Petit jeu multijoueur statique pour GitHub Pages. Les quatre images d'une direction sont utilisees comme animation : la frame `1` est l'idle, puis les frames `1` a `4` bouclent pendant le mouvement.
 

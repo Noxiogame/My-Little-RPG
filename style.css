@@ -108,9 +108,10 @@ button, input { font: inherit; }
 .menu-copy { margin: 10px auto 18px; max-width: 300px; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .main-menu-close { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border: 1px solid var(--line); background: rgba(247,241,222,.05); color: var(--ink); cursor: pointer; font-size: 22px; line-height: 1; }
 .main-menu-close:hover, .main-menu-close:focus-visible { border-color: var(--mint); outline: none; }
-.menu-primary, .menu-secondary { width: 100%; border: 1px solid var(--mint); padding: 10px 12px; cursor: pointer; font: 11px 'DM Mono', monospace; font-weight: 700; }
+.menu-primary, .menu-secondary, .menu-ghost { width: 100%; border: 1px solid var(--mint); padding: 10px 12px; cursor: pointer; font: 11px 'DM Mono', monospace; font-weight: 700; }
 .menu-primary { background: var(--mint); color: #16322c; }
 .menu-secondary { background: transparent; color: var(--mint); }
+.menu-ghost { background: rgba(247,241,222,.03); color: var(--ink); border-color: rgba(247,241,222,.28); }
 .auth-choice, .auth-actions { display: grid; gap: 8px; }
 .auth-form-title { margin: 0 0 8px; color: var(--mint); font: 11px 'DM Mono', monospace; text-transform: uppercase; }
 .auth-actions { grid-template-columns: 1fr auto; margin-top: 9px; }

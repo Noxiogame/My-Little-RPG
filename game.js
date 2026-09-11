@@ -61,7 +61,7 @@ const accountLogout = document.querySelector('#account-logout');
 const loginIdentifier = document.querySelector('#login-identifier');
 const loginPassword = document.querySelector('#login-password');
 const loginAccount = document.querySelector('#login-account');
-const menuSkins = document.querySelector('#menu-skins');
+const openMenuSkins = document.querySelector('#open-menu-skins');
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
 const MIN_CAMERA_ZOOM = .75;
@@ -400,28 +400,8 @@ function createLocalAccount() {
   mainMenu.hidden = true;
 }
 
-function renderMainMenuSkins() {
-  if (!menuSkins) return;
-  menuSkins.replaceChildren();
-  skins.slice(0, 8).forEach((skin) => {
-    const item = document.createElement('div');
-    item.className = 'menu-skin-card';
-    const preview = document.createElement('img');
-    preview.alt = skin.label;
-    const skinPath = skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' : `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`;
-    preview.src = `${skinPath}_down2.png`;
-    const label = document.createElement('span');
-    label.textContent = skin.label;
-    const rarity = document.createElement('small');
-    rarity.textContent = skin.rarity;
-    item.append(preview, label, rarity);
-    menuSkins.append(item);
-  });
-}
-
 function openAccount() {
   if (!isAuthenticated) {
-    renderMainMenuSkins();
     mainMenu.hidden = false;
     hideAuthForm();
     showLogin.focus();
@@ -1201,10 +1181,10 @@ accountSkins.addEventListener('click', () => { closeAccount(); openSkinLibrary()
 accountLogout.addEventListener('click', logoutAccount);
 showLogin.addEventListener('click', () => showAuthForm('login'));
 showCreate.addEventListener('click', () => showAuthForm('create'));
+openMenuSkins.addEventListener('click', () => { closeAuthWindow(); openSkinLibrary(); });
 closeAuth.addEventListener('click', closeAuthWindow);
 backAuth.addEventListener('click', hideAuthForm);
 loginAccount.addEventListener('click', () => authClient ? signInAccount() : enterGame());
-renderMainMenuSkins();
 createAccount.addEventListener('click', () => authClient ? createRemoteAccount() : createLocalAccount());
 saveNickname.addEventListener('click', saveAccountNickname);
 newAccountName.addEventListener('keydown', (event) => { if (event.key === 'Enter') (authClient ? createRemoteAccount() : createLocalAccount()); });

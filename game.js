@@ -137,7 +137,8 @@ async function checkForGameVersion() {
     if (version !== APP_VERSION) {
       console.warn(`Old game version detected: ${APP_VERSION} -> ${version}. Reloading...`);
       addChatMessage('Une nouvelle version du jeu est disponible. Recharge en cours…', 'Prairie');
-      setTimeout(() => forceVersionReload(version, 'Version du jeu obsolète.'), 1500);
+      // Jitter avoids every connected client reloading (and dropping the P2P mesh) at the exact same instant.
+      setTimeout(() => forceVersionReload(version, 'Version du jeu obsolète.'), 1500 + Math.random() * 4000);
     }
   } catch (error) {
     console.warn('Impossible de verifier la version du jeu.', error);
@@ -766,6 +767,19 @@ const zoomPointers = new Map();
 let pinchDistance = null;
 let peer = null;
 let hostConnection = null;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+
+function scheduleReconnect(immediate = false) {
+  if (reconnectTimer) return;
+  reconnectAttempts += 1;
+  const delay = immediate ? 400 : Math.min(1500 * reconnectAttempts, 8000);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (versionMismatchTriggered) return;
+    if (!isHost && (!hostConnection || !hostConnection.open)) createPeer();
+  }, delay);
+}
 let isHost = false;
 let lastTime = performance.now();
 let animationTime = 0;
@@ -1374,7 +1388,10 @@ function wireConnection(connection) {
     if (isHost) removedPlayers.forEach((playerId) => announcePresence('leave', playerId, connection.peer));
     else if (connection === hostConnection) {
       remotePlayers.clear();
-      addChatMessage('La connexion à la prairie a été perdue.', 'Prairie');
+      if (!versionMismatchTriggered) {
+        addChatMessage('Connexion à la prairie perdue. Tentative de reconnexion…', 'Prairie');
+        scheduleReconnect(true);
+      }
     }
   });
 }
@@ -1412,11 +1429,17 @@ function createPeer() {
   }
   closeAllConnections();
   peer = new Peer(hostId);
-  peer.on('open', () => { isHost = true; });
+  peer.on('open', () => { isHost = true; reconnectAttempts = 0; });
   peer.on('connection', (connection) => { wireConnection(connection); connection.on('open', () => connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] })); });
+  peer.on('disconnected', () => {
+    if (versionMismatchTriggered) return;
+    try { peer.reconnect(); } catch { scheduleReconnect(); }
+  });
+  peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
   peer.on('error', (error) => {
-    if (error.type === 'unavailable-id') connectToHost(hostId);
-    else isHost = false;
+    if (error?.type === 'unavailable-id') { connectToHost(hostId); return; }
+    isHost = false;
+    if (!versionMismatchTriggered) scheduleReconnect();
   });
 }
 
@@ -1431,10 +1454,16 @@ function connectToHost(hostId) {
     hostConnection = peer.connect(hostId, { reliable: true });
     wireConnection(hostConnection);
     hostConnection.on('open', () => {
+      reconnectAttempts = 0;
       hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer });
     });
   });
-  peer.on('error', () => {});
+  peer.on('disconnected', () => {
+    if (versionMismatchTriggered) return;
+    try { peer.reconnect(); } catch { scheduleReconnect(); }
+  });
+  peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
+  peer.on('error', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
 }
 
 function resetJoystickPosition() {
@@ -1573,6 +1602,16 @@ eggImage.addEventListener('keydown', (event) => {
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
 setInterval(checkForGameVersion, VERSION_CHECK_INTERVAL);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || versionMismatchTriggered) return;
+  if (!isHost && (!hostConnection || !hostConnection.open) && !reconnectTimer) createPeer();
+  if (peer?.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch { scheduleReconnect(); } }
+});
+setInterval(() => {
+  if (versionMismatchTriggered) return;
+  const stale = !peer || peer.destroyed || (!isHost && (!hostConnection || !hostConnection.open));
+  if (stale && !reconnectTimer) createPeer();
+}, 6000);
 updateAccountUi();
 chatPanel.hidden = true;
 chatToggle.setAttribute('aria-expanded', 'false');

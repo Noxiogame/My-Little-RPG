@@ -24,7 +24,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$version = '%APP_VERSION%'; $game = (Get-Content -Path 'game.js' -Raw); $game = [regex]::Replace($game, \"const APP_VERSION = '.*?'\", \"const APP_VERSION = '$version'\"); Set-Content -Path 'game.js' -Value $game -Encoding UTF8; $html = (Get-Content -Path 'index.html' -Raw); $html = [regex]::Replace($html, '<meta name=\"app-version\" content=\"[^\"]+\" />', '<meta name=\"app-version\" content=\"' + $version + '\" />'); Set-Content -Path 'index.html' -Value $html -Encoding UTF8; $json = '{\"version\": \"' + $version + '\"}'; Set-Content -Path 'version.json' -Value $json -Encoding UTF8"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$version = '%APP_VERSION%'; $game = (Get-Content -Path 'game.js' -Raw); $game = [regex]::Replace($game, \"const APP_VERSION = '.*?'\", \"const APP_VERSION = '$version'\"); Set-Content -Path 'game.js' -Value $game -Encoding UTF8; $html = (Get-Content -Path 'index.html' -Raw); $html = [regex]::Replace($html, '<meta name=\"app-version\" content=\"[^\"]+\" />', '<meta name=\"app-version\" content=\"' + $version + '\" />'); $html = [regex]::Replace($html, 'style\.css\?v=[^\"]+', 'style.css?v=' + $version); $html = [regex]::Replace($html, 'game\.js\?v=[^\"]+', 'game.js?v=' + $version); Set-Content -Path 'index.html' -Value $html -Encoding UTF8; $json = '{\"version\": \"' + $version + '\"}'; Set-Content -Path 'version.json' -Value $json -Encoding UTF8"
 if errorlevel 1 goto :failed
 
 "%GIT%" add -A
@@ -65,7 +65,7 @@ if not defined CI pause
 exit /b 0
 
 :GenerateVersion
-for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyy.MM.dd.HHmmss"') do set "APP_VERSION=%%I"
+for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyy.MM.dd.HHmmssfff"') do set "APP_VERSION=%%I"
 exit /b 0
 
 :failed

@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.7';
+const APP_VERSION = '2026.09.11.8';
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -295,7 +295,11 @@ async function signInAccount() {
   }
   loginAccount.disabled = true;
   const { error } = await authClient.auth.signInWithPassword({ email: authEmail(identifier), password });
-  if (error) menuMessage.textContent = error.message;
+  if (error) {
+    menuMessage.textContent = error.message.toLowerCase().includes('email not confirmed')
+      ? 'Ce compte doit être réactivé depuis le service de comptes. Aucun email n’est demandé dans le jeu.'
+      : 'Identifiant ou mot de passe incorrect.';
+  }
   else window.location.reload();
   loginAccount.disabled = false;
 }
@@ -315,7 +319,7 @@ async function createRemoteAccount() {
   } else if (data.session) {
     window.location.reload();
   } else {
-    menuMessage.textContent = 'Compte créé. Vérifiez votre inscription puis connectez-vous.';
+    menuMessage.textContent = 'Compte créé. Connectez-vous avec votre identifiant.';
   }
   createAccount.disabled = false;
 }

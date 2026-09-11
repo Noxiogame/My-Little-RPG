@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.18';
+const APP_VERSION = '2026.09.11.213000';
 const VERSION_CHECK_INTERVAL = 15000;
 const appVersionBadge = document.querySelector('#app-version-badge');
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';

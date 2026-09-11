@@ -2,8 +2,10 @@ const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
 const APP_VERSION = '2026.09.11.18';
+const VERSION_CHECK_INTERVAL = 15000;
 const appVersionBadge = document.querySelector('#app-version-badge');
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
+let versionMismatchTriggered = false;
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
 const authSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -79,6 +81,32 @@ function updateVersionBadge(version = APP_VERSION) {
   if (appVersionBadge) appVersionBadge.textContent = `v${version}`;
 }
 
+function reloadGameSafely() {
+  if (versionMismatchTriggered) return;
+  versionMismatchTriggered = true;
+  console.warn('Reloading the game safely.');
+  if (peer) {
+    try { peer.destroy(); } catch {}
+    peer = null;
+  }
+  closeAllConnections();
+  localStorage.setItem('app-last-version', APP_VERSION);
+  window.location.reload();
+}
+
+function forceVersionReload(version = APP_VERSION, reason = 'Une mise à jour du jeu est disponible.') {
+  if (versionMismatchTriggered) return;
+  versionMismatchTriggered = true;
+  console.warn(`${reason} Reloading to version ${version}.`);
+  if (peer) {
+    try { peer.destroy(); } catch {}
+    peer = null;
+  }
+  closeAllConnections();
+  localStorage.setItem('app-last-version', version);
+  window.location.reload();
+}
+
 async function checkForGameVersion() {
   updateVersionBadge();
 
@@ -93,12 +121,30 @@ async function checkForGameVersion() {
 
     if (version !== APP_VERSION) {
       console.warn(`Old game version detected: ${APP_VERSION} -> ${version}. Reloading...`);
-      localStorage.setItem('app-last-version', version);
-      window.location.reload();
+      addChatMessage('Une nouvelle version du jeu est disponible. Recharge en cours…', 'Prairie');
+      setTimeout(() => forceVersionReload(version, 'Version du jeu obsolète.'), 1500);
     }
   } catch (error) {
     console.warn('Impossible de verifier la version du jeu.', error);
   }
+}
+
+function handleVersionMismatch(remoteVersion, source = 'remote') {
+  const message = source === 'peer'
+    ? 'Un autre joueur utilise une version différente. La session continue sans lui.'
+    : `Version du jeu différente (${APP_VERSION} vs ${remoteVersion}).`;
+  addChatMessage(message, 'Prairie');
+  if (source === 'remote') {
+    setTimeout(() => reloadGameSafely(), 1200);
+  }
+}
+
+function sendVersionAwareReload() {
+  if (connections.size > 0 || hostConnection) {
+    closeAllConnections();
+    addChatMessage('Déconnexion de la prairie pour actualiser proprement le jeu…', 'Prairie');
+  }
+  reloadGameSafely();
 }
 
 function loadTileTexture(type, mask, variation = '') {
@@ -1232,6 +1278,13 @@ function closeConnection(connection, silent = false) {
 
 function receive(connection, payload) {
   if (!payload || !payload.type) return;
+
+  if (payload.type === 'version-mismatch') {
+    addChatMessage('Un autre joueur a une version différente. Sa session est temporairement ignorée.', 'Prairie');
+    closeConnection(connection, true);
+    return;
+  }
+
   if (payload.type === 'leave') {
     remotePlayers.delete(payload.playerId);
     if (isHost) announcePresence('leave', payload.playerId, connection.peer);
@@ -1253,10 +1306,20 @@ function receive(connection, payload) {
     remotePlayers.set(payload.player.id, player);
     if (isHost) broadcast(payload, connection.peer);
   }
-  if (payload.type === 'hello' && isHost) {
-    connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
-    broadcast({ type: 'state', player: localPlayer }, connection.peer);
-    announcePresence('join', payload.player.id, connection.peer);
+  if (payload.type === 'hello') {
+    const remoteVersion = payload.version || 'unknown';
+    if (remoteVersion !== APP_VERSION) {
+      connection.send({ type: 'version-mismatch', version: APP_VERSION });
+      addChatMessage('Version incompatible détectée. Ce joueur ne rejoint pas la prairie.', 'Prairie');
+      closeConnection(connection, true);
+      return;
+    }
+    if (isHost) {
+      connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
+      broadcast({ type: 'state', player: localPlayer }, connection.peer);
+      announcePresence('join', payload.player.id, connection.peer);
+    }
+    return;
   }
   if (payload.type === 'presence') {
     addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
@@ -1349,7 +1412,13 @@ function connectToHost(hostId) {
   }
   closeAllConnections();
   peer = new Peer();
-  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer }); }); });
+  peer.on('open', () => {
+    hostConnection = peer.connect(hostId, { reliable: true });
+    wireConnection(hostConnection);
+    hostConnection.on('open', () => {
+      hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer });
+    });
+  });
   peer.on('error', () => {});
 }
 
@@ -1463,7 +1532,7 @@ window.addEventListener('beforeunload', sendLeave);
 chatForm.addEventListener('submit', sendChatMessage);
 accountButton.addEventListener('click', openAccount);
 chatToggle.addEventListener('click', toggleChat);
-reloadButton.addEventListener('click', () => window.location.reload());
+reloadButton.addEventListener('click', sendVersionAwareReload);
 accountClose.addEventListener('click', closeAccount);
 accountModal.querySelector('.account-modal-backdrop').addEventListener('click', closeAccount);
 accountSkins.addEventListener('click', () => { closeAccount(); openSkinLibrary(); });
@@ -1488,6 +1557,7 @@ eggImage.addEventListener('keydown', (event) => {
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
+setInterval(checkForGameVersion, VERSION_CHECK_INTERVAL);
 updateAccountUi();
 chatPanel.hidden = true;
 chatToggle.setAttribute('aria-expanded', 'false');

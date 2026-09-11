@@ -40,6 +40,9 @@ const showLogin = document.querySelector('#show-login');
 const showCreate = document.querySelector('#show-create');
 const authForm = document.querySelector('#auth-form');
 const authFormTitle = document.querySelector('#auth-form-title');
+mainMenu.hidden = true;
+authForm.hidden = true;
+authChoice.hidden = false;
 const backAuth = document.querySelector('#back-auth');
 const newAccountName = document.querySelector('#new-account-name');
 const createAccount = document.querySelector('#create-account');
@@ -101,9 +104,13 @@ function createSprite(character, direction, frame) {
     spamton: { folder: 'Spamton', prefix: 'spamton' },
     temmie: { folder: 'Temmie', prefix: 'temmie' },
     asgore: { folder: 'Asgore', prefix: 'asgore' },
-       foxy: { folder: 'Foxy', prefix: 'foxy' },
-       pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
-       villager: { folder: 'Villageois', prefix: 'villager' },
+    jevil: { folder: 'Jevil', prefix: 'jevil' },
+    papyrus: { folder: 'Papyrus', prefix: 'papyrus' },
+    sans: { folder: 'Sans', prefix: 'sans' },
+    undyne: { folder: 'Undyne', prefix: 'undyne' },
+    foxy: { folder: 'Foxy', prefix: 'foxy' },
+    pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
+    villager: { folder: 'Villageois', prefix: 'villager' },
   };
   const skin = skinPaths[character] || skinPaths.noelle;
   const folder = skin.folder;
@@ -117,6 +124,10 @@ const characterSprites = {
   'noelle-alt': Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle-alt', direction, frame))])),
   temmie: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('temmie', direction, frame))])),
   asgore: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('asgore', direction, frame))])),
+  jevil: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('jevil', direction, frame))])),
+  papyrus: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('papyrus', direction, frame))])),
+  sans: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('sans', direction, frame))])),
+  undyne: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('undyne', direction, frame))])),
   foxy: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('foxy', direction, frame))])),
   pikachu: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('pikachu', direction, frame))])),
     villager: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('villager', direction, frame))])),
@@ -128,6 +139,25 @@ const characterSprites = {
   },
 };
 
+function getAnimationFrameIndex(player) {
+  if (!player?.moving || !player?.character) return 0;
+  const speedRatio = Number.isFinite(player.movementSpeed) ? Math.max(.2, Math.min(1.75, player.movementSpeed)) : 1;
+  const frameDuration = 240 / speedRatio;
+  return Math.floor(animationTime / frameDuration) % 4;
+}
+
+function updateSkinLibraryAnimations() {
+  if (!skinList) return;
+  const previews = skinList.querySelectorAll('.skin-preview');
+  previews.forEach((preview) => {
+    const skinId = preview.dataset.skinId;
+    const selectedSprites = characterSprites[skinId] || characterSprites.noelle;
+    const frameIndex = Math.floor(animationTime / 180) % 4;
+    const image = selectedSprites.down?.[frameIndex] || selectedSprites.down?.[0];
+    if (image) preview.src = image.src;
+  });
+}
+
 const eggTextures = {
   stages: ['Tilesets/pipis.png', 'Tilesets/pipis_break1.png', 'Tilesets/pipis_break2.png', 'Tilesets/pipis_break3.png'],
   broken: 'Tilesets/pipis_broken.png',
@@ -135,18 +165,22 @@ const eggTextures = {
   right: 'Tilesets/pipis_broken_right.png',
   shards: ['Tilesets/pipis_shard1.png', 'Tilesets/pipis_shard2.png', 'Tilesets/pipis_shard3.png'],
 };
-const eggRarities = ['Commune', 'Inhabituelle', 'Rare', 'Légendaire'];
+const eggRarities = ['Commun', 'Non commun', 'Rare', 'Légendaire'];
 const eggRewards = [5, 15, 50, 200];
 const eggBreakChance = .2;
 const skins = [
-  { id: 'noelle', label: 'Noelle', rarity: 'Commune', price: 0 },
-  { id: 'noelle-alt', label: 'Noelle Alt', rarity: 'Inhabituelle', price: 60 },
+  { id: 'noelle', label: 'Noelle', rarity: 'Commun', price: 0 },
+  { id: 'noelle-alt', label: 'Noelle Alt', rarity: 'Non commun', price: 60 },
+  { id: 'villager', label: 'Villageois', rarity: 'Non commun', price: 90 },
   { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
-  { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 220 },
+  { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 450 },
   { id: 'asgore', label: 'Asgore', rarity: 'Légendaire', price: 350 },
-    { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150, preview: 'Foxy/foxy_down2.png' },
-    { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400, preview: 'Pikachu/pikachu_down2.png' },
-    { id: 'villager', label: 'Villageois', rarity: 'Inhabituelle', price: 90, preview: 'Villageois/villager_down2.png' },
+  { id: 'jevil', label: 'Jevil', rarity: 'Légendaire', price: 450 },
+  { id: 'papyrus', label: 'Papyrus', rarity: 'Rare', price: 180 },
+  { id: 'sans', label: 'Sans', rarity: 'Rare', price: 180 },
+  { id: 'undyne', label: 'Undyne', rarity: 'Rare', price: 180 },
+  { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150 },
+  { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400 },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const accountsStorageKey = 'noelle-meadow-accounts-v1';
@@ -639,9 +673,6 @@ function drawWorld() {
       drawTile(worldMap[rowIndex][columnIndex], columnIndex, rowIndex);
     }
   }
-  context.fillStyle = 'rgba(255, 214, 145, .25)';
-  context.beginPath(); context.arc(worldSize.width * .78, worldSize.height * .2, 38, 0, Math.PI * 2); context.fill();
-  context.fillStyle = '#f5c884'; context.beginPath(); context.arc(worldSize.width * .78, worldSize.height * .2, 22, 0, Math.PI * 2); context.fill();
   context.restore();
   context.fillStyle = 'rgba(247,241,222,.3)'; context.font = '11px DM Mono, monospace'; context.fillText('MEADOW 01', 30, height - 30);
 }
@@ -656,7 +687,7 @@ function worldToScreen(x, y) {
 function drawPlayer(player, isLocal = false) {
   const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
   const imageFrames = selectedSprites[player.direction] || selectedSprites.down;
-  const frame = player.moving ? Math.floor(animationTime / 120) % 4 : 0;
+  const frame = getAnimationFrameIndex(player);
   const image = imageFrames[frame];
   const pixelWidth = image.naturalWidth || 23;
   const pixelHeight = image.naturalHeight || 47;
@@ -664,14 +695,13 @@ function drawPlayer(player, isLocal = false) {
   const height = pixelHeight * cameraZoom;
   const position = worldToScreen(player.x, player.y);
   const x = position.x;
-  const y = position.y;
+  const y = position.y + 4;
   if (!isLocal && (x < -width || x > viewport.width + width || y < -height || y > viewport.height + height)) return;
   context.save();
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height, width, height);
-  if (isLocal) { context.fillStyle = '#b9e7b1'; context.beginPath(); context.arc(x, y - height - 5, 3, 0, Math.PI * 2); context.fill(); }
+  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + 3, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -808,8 +838,10 @@ function inputVector() {
 
 function update(delta) {
   const vector = inputVector();
-  const moving = Math.hypot(vector.x, vector.y) > .08;
+  const movementStrength = Math.hypot(vector.x, vector.y);
+  const moving = movementStrength > .08;
   localPlayer.moving = moving;
+  localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
   if (moving) {
     const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
     localPlayer.x = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
@@ -819,14 +851,19 @@ function update(delta) {
   }
   const smoothing = 1 - Math.exp(-delta / 85);
   remotePlayers.forEach((player) => {
+    const previousX = player.x;
+    const previousY = player.y;
     player.x += (player.targetX - player.x) * smoothing;
     player.y += (player.targetY - player.y) * smoothing;
+    const traveled = Math.hypot(player.x - previousX, player.y - previousY);
+    player.movementSpeed = traveled > 0 ? Math.min(1.75, traveled / (PLAYER_SPEED * delta / 1000 / worldSize.width)) : 0;
+    player.moving = traveled > 0.0001;
   });
 }
 
 function frame(now) {
   const delta = Math.min(now - lastTime, 50);
-  lastTime = now; animationTime += delta; update(delta); camera.x = localPlayer.x; camera.y = localPlayer.y; draw();
+  lastTime = now; animationTime += delta; update(delta); camera.x = localPlayer.x; camera.y = localPlayer.y; updateSkinLibraryAnimations(); draw();
   requestAnimationFrame(frame);
 }
 
@@ -904,6 +941,8 @@ function renderSkinLibrary() {
     const item = document.createElement('article');
     item.className = `skin-item${equipped ? ' is-equipped' : ''}`;
     const preview = document.createElement('img');
+    preview.className = 'skin-preview';
+    preview.dataset.skinId = skin.id;
     const previewPath = skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' : `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`;
     preview.src = skin.preview || `${previewPath}_down2.png`;
     preview.alt = skin.label;

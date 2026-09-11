@@ -18,4 +18,4 @@ La presence utilise PeerJS/WebRTC depuis un CDN, sans serveur applicatif a maint
 
 ## Oeuf de recompense
 
-L'icone Pipis en haut de l'ecran ouvre l'oeuf au centre. Chaque oeuf peut recevoir jusqu'a 12 frappes, avec un palier tous les 3 clics et un shard affiche a chaque palier. Chaque frappe a 20 % de chance de casser l'oeuf avant la fin ; la rarete obtenue depend du palier atteint : commune, inhabituelle, rare ou legendaire. Le douzieme coup casse toujours l'oeuf s'il a tenu jusque-la.
+L'icone Pipis en haut de l'ecran ouvre l'oeuf au centre. Chaque oeuf peut recevoir jusqu'a 12 frappes, avec un palier tous les 3 clics et un shard affiche a chaque palier. Chaque frappe a 20 % de chance de casser l'oeuf avant la fin ; la rarete obtenue depend du palier atteint : commune, non commun, rare ou legendaire. Le douzieme coup casse toujours l'oeuf s'il a tenu jusque-la.

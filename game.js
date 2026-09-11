@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.3';
+const APP_VERSION = '2026.09.11.4';
 const status = document.querySelector('#status');
 const statusText = document.querySelector('#status-text');
 const playersElement = document.querySelector('#players');
@@ -70,8 +70,9 @@ function createSprite(character, direction, frame) {
     spamton: { folder: 'Spamton', prefix: 'spamton' },
     temmie: { folder: 'Temmie', prefix: 'temmie' },
     asgore: { folder: 'Asgore', prefix: 'asgore' },
-    foxy: { folder: '.', prefix: 'foxy' },
-    pikachu: { folder: '.', prefix: 'pikachu' },
+       foxy: { folder: 'Foxy', prefix: 'foxy' },
+       pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
+       villager: { folder: 'Villageois', prefix: 'villager' },
   };
   const skin = skinPaths[character] || skinPaths.noelle;
   const folder = skin.folder;
@@ -87,6 +88,7 @@ const characterSprites = {
   asgore: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('asgore', direction, frame))])),
   foxy: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('foxy', direction, frame))])),
   pikachu: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('pikachu', direction, frame))])),
+    villager: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('villager', direction, frame))])),
   spamton: {
     down: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
     left: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'left', frame)),
@@ -111,8 +113,9 @@ const skins = [
   { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
   { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 220 },
   { id: 'asgore', label: 'Asgore', rarity: 'Légendaire', price: 350 },
-  { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150, preview: 'foxy_down2.png' },
-  { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400, preview: 'pikachu_down2.png' },
+    { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150, preview: 'Foxy/foxy_down2.png' },
+    { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400, preview: 'Pikachu/pikachu_down2.png' },
+    { id: 'villager', label: 'Villageois', rarity: 'Inhabituelle', price: 90, preview: 'Villageois/villager_down2.png' },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const session = loadSession();
@@ -620,7 +623,7 @@ function renderSkinLibrary() {
     action.textContent = equipped ? 'Équipé' : owned ? 'Équiper' : `${skin.price} ¢`;
     action.disabled = equipped;
     action.addEventListener('click', () => chooseSkin(skin));
-    item.append(preview, details, action);
+    item.append(details, preview, action);
     skinList.append(item);
   });
 }

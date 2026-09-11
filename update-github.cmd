@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 set "GIT=git"
@@ -23,14 +23,10 @@ if errorlevel 1 (
 "%GIT%" add -A
 "%GIT%" diff --cached --quiet
 if errorlevel 1 (
-  if defined CI (
-    set "MESSAGE=Update du jeu"
-  ) else (
-    set "MESSAGE=Update du jeu"
-    set /p "MESSAGE=Message du commit [Update du jeu] : "
-  )
+  set "MESSAGE=Update du jeu"
+  if not defined CI set /p "MESSAGE=Message du commit [Update du jeu] : "
   if not defined MESSAGE set "MESSAGE=Update du jeu"
-  "%GIT%" commit -m "%MESSAGE%"
+  "%GIT%" commit -m "!MESSAGE!"
   if errorlevel 1 goto :failed
 ) else (
   echo Aucun changement local a committer.

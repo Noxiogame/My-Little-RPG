@@ -21,7 +21,7 @@ const eggProgress = document.querySelector('#egg-progress');
 const eggResult = document.querySelector('#egg-result');
 const coinAmount = document.querySelector('#coin-amount');
 const TILE_SIZE = 20;
-const WORLD_SCALE = 3;
+const WORLD_SIZE = { width: 2520, height: 1200 };
 const CAMERA_ZOOM = 1.35;
 const PLAYER_SPEED = 100;
 const ROOM_ID = 'prairie';
@@ -226,7 +226,7 @@ let worldSize = { width: 0, height: 0 };
 const camera = { x: .5, y: .55 };
 
 function createWorldMap() {
-  worldSize = { width: viewport.width * WORLD_SCALE, height: viewport.height * WORLD_SCALE };
+  worldSize = WORLD_SIZE;
   const columns = Math.ceil(worldSize.width / TILE_SIZE) + 1;
   const rows = Math.ceil(worldSize.height / TILE_SIZE) + 1;
   const map = Array.from({ length: rows }, () => Array(columns).fill('grass'));

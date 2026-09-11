@@ -14,7 +14,7 @@ html, body { margin: 0; min-height: 100%; background: #101b1a; }
 body { color: var(--ink); font-family: Outfit, sans-serif; overflow: hidden; }
 button, input { font: inherit; }
 
-.game-shell { position: relative; width: 100vw; height: 100dvh; min-height: 520px; overflow: hidden; background: #315951; }
+.game-shell { position: relative; width: 100vw; height: 100dvh; overflow: hidden; background: #315951; }
 #game { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .speech-bubbles { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .speech-bubble { position: absolute; min-width: 42px; max-width: 176px; padding: 11px 15px; transform: translate(-50%, -100%); background-color: #19152a; background-image: url('Noelle/talkbox_ui_interior.png'); background-repeat: repeat; color: #f7f1de; font: 11px/1.35 'DM Mono', monospace; overflow-wrap: anywhere; text-align: center; image-rendering: pixelated; }

@@ -44,6 +44,7 @@ mainMenu.hidden = true;
 authForm.hidden = true;
 authChoice.hidden = false;
 const backAuth = document.querySelector('#back-auth');
+const closeAuth = document.querySelector('#close-auth');
 const newAccountName = document.querySelector('#new-account-name');
 const createAccount = document.querySelector('#create-account');
 const menuMessage = document.querySelector('#menu-message');
@@ -96,22 +97,38 @@ const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((n
   return [name, image];
 }));
 
+const skinPaths = {
+  noelle: { folder: 'Noelle', prefix: 'noelle' },
+  'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
+  spamton: { folder: 'Spamton', prefix: 'spamton' },
+  temmie: { folder: 'Temmie', prefix: 'temmie' },
+  asgore: { folder: 'Asgore', prefix: 'asgore' },
+  jevil: { folder: 'Jevil', prefix: 'jevil' },
+  papyrus: { folder: 'Papyrus', prefix: 'papyrus' },
+  sans: { folder: 'Sans', prefix: 'sans' },
+  undyne: { folder: 'Undyne', prefix: 'undyne' },
+  foxy: { folder: 'Foxy', prefix: 'foxy' },
+  pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
+  villager: { folder: 'Villageois', prefix: 'villager' },
+};
+
+const spriteFrameCounts = {
+  noelle: { down: 4, left: 4, right: 4, up: 4 },
+  'noelle-alt': { down: 4, left: 4, right: 4, up: 4 },
+  spamton: { down: 4, left: 4, right: 4, up: 4 },
+  temmie: { down: 4, left: 4, right: 4, up: 4 },
+  asgore: { down: 4, left: 4, right: 4, up: 4 },
+  jevil: { down: 4, left: 4, right: 4, up: 4 },
+  papyrus: { down: 4, left: 4, right: 4, up: 4 },
+  sans: { down: 4, left: 4, right: 4, up: 4 },
+  undyne: { down: 4, left: 2, right: 4, up: 4 },
+  foxy: { down: 4, left: 4, right: 4, up: 4 },
+  pikachu: { down: 4, left: 4, right: 4, up: 4 },
+  villager: { down: 4, left: 4, right: 4, up: 4 },
+};
+
 function createSprite(character, direction, frame) {
   const image = new Image();
-  const skinPaths = {
-    noelle: { folder: 'Noelle', prefix: 'noelle' },
-    'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
-    spamton: { folder: 'Spamton', prefix: 'spamton' },
-    temmie: { folder: 'Temmie', prefix: 'temmie' },
-    asgore: { folder: 'Asgore', prefix: 'asgore' },
-    jevil: { folder: 'Jevil', prefix: 'jevil' },
-    papyrus: { folder: 'Papyrus', prefix: 'papyrus' },
-    sans: { folder: 'Sans', prefix: 'sans' },
-    undyne: { folder: 'Undyne', prefix: 'undyne' },
-    foxy: { folder: 'Foxy', prefix: 'foxy' },
-    pikachu: { folder: 'Pikachu', prefix: 'pikachu' },
-    villager: { folder: 'Villageois', prefix: 'villager' },
-  };
   const skin = skinPaths[character] || skinPaths.noelle;
   const folder = skin.folder;
   const prefix = skin.prefix;
@@ -119,31 +136,30 @@ function createSprite(character, direction, frame) {
   return image;
 }
 
-const characterSprites = {
-  noelle: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle', direction, frame))])),
-  'noelle-alt': Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('noelle-alt', direction, frame))])),
-  temmie: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('temmie', direction, frame))])),
-  asgore: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('asgore', direction, frame))])),
-  jevil: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('jevil', direction, frame))])),
-  papyrus: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('papyrus', direction, frame))])),
-  sans: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('sans', direction, frame))])),
-  undyne: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('undyne', direction, frame))])),
-  foxy: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('foxy', direction, frame))])),
-  pikachu: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('pikachu', direction, frame))])),
-    villager: Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, [1, 2, 3, 4].map((frame) => createSprite('villager', direction, frame))])),
-  spamton: {
-    down: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'down', frame)),
-    left: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'left', frame)),
-    right: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'right', frame)),
-    up: [1, 2, 3, 4].map((frame) => createSprite('spamton', 'up', frame)),
-  },
-};
+function getSpriteFrameCount(character, direction) {
+  const countsByDirection = spriteFrameCounts[character];
+  if (countsByDirection && Number.isInteger(countsByDirection[direction])) return countsByDirection[direction];
+  return 4;
+}
 
-function getAnimationFrameIndex(player) {
+function createAnimationFrames(character, direction) {
+  const frameCount = getSpriteFrameCount(character, direction);
+  return Array.from({ length: frameCount }, (_, index) => createSprite(character, direction, index + 1));
+}
+
+const characterSprites = Object.fromEntries(
+  Object.keys(skinPaths).map((character) => [
+    character,
+    Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, createAnimationFrames(character, direction)])),
+  ]),
+);
+
+function getAnimationFrameIndex(player, frames = []) {
   if (!player?.moving || !player?.character) return 0;
+  const frameCount = Array.isArray(frames) && frames.length > 0 ? frames.length : 1;
   const speedRatio = Number.isFinite(player.movementSpeed) ? Math.max(.2, Math.min(1.75, player.movementSpeed)) : 1;
   const frameDuration = 240 / speedRatio;
-  return Math.floor(animationTime / frameDuration) % 4;
+  return Math.floor(animationTime / frameDuration) % frameCount;
 }
 
 function updateSkinLibraryAnimations() {
@@ -152,7 +168,8 @@ function updateSkinLibraryAnimations() {
   previews.forEach((preview) => {
     const skinId = preview.dataset.skinId;
     const selectedSprites = characterSprites[skinId] || characterSprites.noelle;
-    const frameIndex = Math.floor(animationTime / 180) % 4;
+    const frameCount = selectedSprites.down?.length ? selectedSprites.down.length : 1;
+    const frameIndex = Math.floor(animationTime / 180) % frameCount;
     const image = selectedSprites.down?.[frameIndex] || selectedSprites.down?.[0];
     if (image) preview.src = image.src;
   });
@@ -348,6 +365,12 @@ function showAuthForm(mode) {
 function hideAuthForm() {
   authForm.hidden = true;
   authChoice.hidden = false;
+  menuMessage.textContent = '';
+}
+
+function closeAuthWindow() {
+  hideAuthForm();
+  mainMenu.hidden = true;
   menuMessage.textContent = '';
 }
 
@@ -687,8 +710,9 @@ function worldToScreen(x, y) {
 function drawPlayer(player, isLocal = false) {
   const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
   const imageFrames = selectedSprites[player.direction] || selectedSprites.down;
-  const frame = getAnimationFrameIndex(player);
-  const image = imageFrames[frame];
+  const frame = getAnimationFrameIndex(player, imageFrames);
+  const image = imageFrames[frame] || imageFrames[0];
+  if (!image) return;
   const pixelWidth = image.naturalWidth || 23;
   const pixelHeight = image.naturalHeight || 47;
   const width = pixelWidth * cameraZoom;
@@ -1131,6 +1155,13 @@ joystick.addEventListener('pointermove', (event) => { if (joystickInput.active &
 function releaseJoystick() { joystickInput.active = false; joystickInput.x = 0; joystickInput.y = 0; stick.style.transform = 'translate(0, 0)'; }
 joystick.addEventListener('pointerup', releaseJoystick); joystick.addEventListener('pointercancel', releaseJoystick);
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    if (!skinModal.hidden) { closeSkinLibrary(); return; }
+    if (!eggModal.hidden) { closeEgg(); return; }
+    if (!accountModal.hidden) { closeAccount(); return; }
+    if (!mainMenu.hidden) { closeAuthWindow(); return; }
+    return;
+  }
   if (event.target instanceof HTMLInputElement) return;
   keys.add(event.key.toLowerCase());
 });
@@ -1149,6 +1180,7 @@ accountSkins.addEventListener('click', () => { closeAccount(); openSkinLibrary()
 accountLogout.addEventListener('click', logoutAccount);
 showLogin.addEventListener('click', () => showAuthForm('login'));
 showCreate.addEventListener('click', () => showAuthForm('create'));
+closeAuth.addEventListener('click', closeAuthWindow);
 backAuth.addEventListener('click', hideAuthForm);
 loginAccount.addEventListener('click', () => authClient ? signInAccount() : enterGame());
 createAccount.addEventListener('click', () => authClient ? createRemoteAccount() : createLocalAccount());

@@ -2,6 +2,7 @@ const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
 const APP_VERSION = '2026.09.11.18';
+const appVersionBadge = document.querySelector('#app-version-badge');
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -73,6 +74,32 @@ const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
 const SIDEWALK_TEXTURE_NAMES = ['0001', '0010', '0011', '0100', '0101', '0110', '1000', '1001', '1010', '1100'];
 const tileTextures = { grass: {}, road: {}, sidewalk: {} };
+
+function updateVersionBadge(version = APP_VERSION) {
+  if (appVersionBadge) appVersionBadge.textContent = `v${version}`;
+}
+
+async function checkForGameVersion() {
+  updateVersionBadge();
+
+  try {
+    const response = await fetch(`version.json?ts=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) return;
+
+    const { version } = await response.json();
+    if (!version) return;
+
+    updateVersionBadge(version);
+
+    if (version !== APP_VERSION) {
+      console.warn(`Old game version detected: ${APP_VERSION} -> ${version}. Reloading...`);
+      localStorage.setItem('app-last-version', version);
+      window.location.reload();
+    }
+  } catch (error) {
+    console.warn('Impossible de verifier la version du jeu.', error);
+  }
+}
 
 function loadTileTexture(type, mask, variation = '') {
   const image = new Image();
@@ -933,16 +960,18 @@ function draw() {
   drawWorld();
   const players = [...remotePlayers.values(), { ...localPlayer, isLocal: true }];
 
-  const houses = houseStructures
-    .map((structure) => ({ y: structure.anchorY / worldSize.height, draw: () => drawStructure(structure) }))
-    .sort((first, second) => first.y - second.y);
+  const drawables = [
+    ...houseStructures.map((structure) => ({
+      y: structure.anchorY / worldSize.height,
+      draw: () => drawStructure(structure),
+    })),
+    ...players.map((player) => ({
+      y: player.y,
+      draw: () => drawPlayer(player, player.isLocal),
+    })),
+  ].sort((first, second) => first.y - second.y);
 
-  houses.forEach((item) => item.draw());
-  players
-    .map((player) => ({ y: player.y, draw: () => drawPlayer(player, player.isLocal) }))
-    .sort((first, second) => first.y - second.y)
-    .forEach((item) => item.draw());
-
+  drawables.forEach((item) => item.draw());
   syncSpeechBubbles(players);
 }
 
@@ -1463,5 +1492,6 @@ updateAccountUi();
 chatPanel.hidden = true;
 chatToggle.setAttribute('aria-expanded', 'false');
 mainMenu.hidden = true;
+checkForGameVersion();
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });

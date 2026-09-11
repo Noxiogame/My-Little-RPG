@@ -131,6 +131,8 @@ const skinPaths = {
   undyne: { folder: 'Characters/Undyne', prefix: 'undyne' },
   foxy: { folder: 'Characters/Foxy', prefix: 'foxy' },
   pikachu: { folder: 'Characters/Pikachu', prefix: 'pikachu' },
+  puppet: { folder: 'Characters/Puppet', prefix: 'puppet' },
+  'withered-bonnie': { folder: 'Characters/WitheredBonnie', prefix: 'withered_bonnie' },
   villager: { folder: 'Characters/Villageois', prefix: 'villager' },
   'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
 };
@@ -243,6 +245,8 @@ const skins = [
   { id: 'undyne', label: 'Undyne', rarity: 'Rare', price: 180 },
   { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150 },
   { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400 },
+  { id: 'puppet', label: 'Puppet', rarity: 'Rare', price: 250 },
+  { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
@@ -928,12 +932,17 @@ function drawSpeechBubble(player, anchorX, anchorY) {
 function draw() {
   drawWorld();
   const players = [...remotePlayers.values(), { ...localPlayer, isLocal: true }];
-  const drawables = [
-    ...houseStructures.map((structure) => ({ y: structure.anchorY / worldSize.height, draw: () => drawStructure(structure) })),
-    ...players.map((player) => ({ y: player.y, draw: () => drawPlayer(player, player.isLocal) })),
-  ];
-  drawables.sort((first, second) => first.y - second.y);
-  drawables.forEach((item) => item.draw());
+
+  const houses = houseStructures
+    .map((structure) => ({ y: structure.anchorY / worldSize.height, draw: () => drawStructure(structure) }))
+    .sort((first, second) => first.y - second.y);
+
+  houses.forEach((item) => item.draw());
+  players
+    .map((player) => ({ y: player.y, draw: () => drawPlayer(player, player.isLocal) }))
+    .sort((first, second) => first.y - second.y)
+    .forEach((item) => item.draw());
+
   syncSpeechBubbles(players);
 }
 

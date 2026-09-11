@@ -27,7 +27,9 @@ const skinResult = document.querySelector('#skin-result');
 const coinAmount = document.querySelector('#coin-amount');
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
-const CAMERA_ZOOM = 1.35;
+const MIN_CAMERA_ZOOM = .75;
+const MAX_CAMERA_ZOOM = 2.5;
+let cameraZoom = 1.35;
 const PLAYER_SPEED = 100;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
@@ -231,6 +233,8 @@ const speechElements = new Map();
 const connections = new Map();
 const keys = new Set();
 const joystickInput = { x: 0, y: 0, active: false, pointerId: null };
+const zoomPointers = new Map();
+let pinchDistance = null;
 let peer = null;
 let hostConnection = null;
 let isHost = false;
@@ -308,13 +312,13 @@ function drawWorld() {
   context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
   const cameraX = camera.x * worldSize.width;
   const cameraY = camera.y * worldSize.height;
-  const visibleLeft = Math.max(0, Math.floor((cameraX - width / (2 * CAMERA_ZOOM)) / TILE_SIZE) - 1);
-  const visibleRight = Math.min(worldMap[0]?.length || 0, Math.ceil((cameraX + width / (2 * CAMERA_ZOOM)) / TILE_SIZE) + 1);
-  const visibleTop = Math.max(0, Math.floor((cameraY - height / (2 * CAMERA_ZOOM)) / TILE_SIZE) - 1);
-  const visibleBottom = Math.min(worldMap.length, Math.ceil((cameraY + height / (2 * CAMERA_ZOOM)) / TILE_SIZE) + 1);
+  const visibleLeft = Math.max(0, Math.floor((cameraX - width / (2 * cameraZoom)) / TILE_SIZE) - 1);
+  const visibleRight = Math.min(worldMap[0]?.length || 0, Math.ceil((cameraX + width / (2 * cameraZoom)) / TILE_SIZE) + 1);
+  const visibleTop = Math.max(0, Math.floor((cameraY - height / (2 * cameraZoom)) / TILE_SIZE) - 1);
+  const visibleBottom = Math.min(worldMap.length, Math.ceil((cameraY + height / (2 * cameraZoom)) / TILE_SIZE) + 1);
   context.save();
-  context.translate(width / 2 - cameraX * CAMERA_ZOOM, height / 2 - cameraY * CAMERA_ZOOM);
-  context.scale(CAMERA_ZOOM, CAMERA_ZOOM);
+  context.translate(width / 2 - cameraX * cameraZoom, height / 2 - cameraY * cameraZoom);
+  context.scale(cameraZoom, cameraZoom);
   for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
     for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {
       drawTile(worldMap[rowIndex][columnIndex], columnIndex, rowIndex);
@@ -329,8 +333,8 @@ function drawWorld() {
 
 function worldToScreen(x, y) {
   return {
-    x: viewport.width / 2 + (x * worldSize.width - camera.x * worldSize.width) * CAMERA_ZOOM,
-    y: viewport.height / 2 + (y * worldSize.height - camera.y * worldSize.height) * CAMERA_ZOOM,
+    x: viewport.width / 2 + (x * worldSize.width - camera.x * worldSize.width) * cameraZoom,
+    y: viewport.height / 2 + (y * worldSize.height - camera.y * worldSize.height) * cameraZoom,
   };
 }
 
@@ -341,8 +345,8 @@ function drawPlayer(player, isLocal = false) {
   const image = imageFrames[frame];
   const pixelWidth = image.naturalWidth || 23;
   const pixelHeight = image.naturalHeight || 47;
-  const width = pixelWidth * CAMERA_ZOOM;
-  const height = pixelHeight * CAMERA_ZOOM;
+  const width = pixelWidth * cameraZoom;
+  const height = pixelHeight * cameraZoom;
   const position = worldToScreen(player.x, player.y);
   const x = position.x;
   const y = position.y;
@@ -454,7 +458,7 @@ function syncSpeechBubbles(players) {
     bubble.querySelector('.speech-bubble-text').textContent = player.speech;
     buildHorizontalEdges(bubble);
     bubble.style.left = `${position.x}px`;
-    const bubbleHeight = (characterSprites[player.character]?.[player.direction]?.[0]?.naturalHeight || 47) * CAMERA_ZOOM;
+    const bubbleHeight = (characterSprites[player.character]?.[player.direction]?.[0]?.naturalHeight || 47) * cameraZoom;
     bubble.style.top = `${position.y - bubbleHeight - 13}px`;
   });
   speechElements.forEach((bubble, id) => {
@@ -479,9 +483,9 @@ function buildHorizontalEdges(bubble) {
 function inputVector() {
   let x = joystickInput.x;
   let y = joystickInput.y;
-  if (keys.has('arrowleft') || keys.has('a')) x -= 1;
+  if (keys.has('arrowleft') || keys.has('q')) x -= 1;
   if (keys.has('arrowright') || keys.has('d')) x += 1;
-  if (keys.has('arrowup') || keys.has('w')) y -= 1;
+  if (keys.has('arrowup') || keys.has('z')) y -= 1;
   if (keys.has('arrowdown') || keys.has('s')) y += 1;
   const length = Math.hypot(x, y);
   return length > 1 ? { x: x / length, y: y / length } : { x, y };
@@ -529,6 +533,13 @@ function sendState() {
 
 function broadcast(payload, exceptId = null) {
   connections.forEach((connection, id) => { if (id !== exceptId && connection.open) connection.send(payload); });
+}
+
+function announcePresence(event, playerId, exceptId = null) {
+  const label = playerId.slice(-6);
+  const message = event === 'join' ? `${label} arrive dans la prairie.` : `${label} quitte la prairie.`;
+  addChatMessage(message, 'Prairie');
+  broadcast({ type: 'presence', event, playerId, sender: label }, exceptId);
 }
 
 function addChatMessage(message, sender, isOwn = false) {
@@ -620,7 +631,7 @@ function receive(connection, payload) {
   if (payload.type === 'leave') {
     remotePlayers.delete(payload.playerId);
     renderPlayers();
-    if (isHost) broadcast(payload, connection.peer);
+    if (isHost) announcePresence('leave', payload.playerId, connection.peer);
     return;
   }
   if (payload.type === 'state') {
@@ -642,6 +653,15 @@ function receive(connection, payload) {
   if (payload.type === 'hello' && isHost) {
     connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
     broadcast({ type: 'state', player: localPlayer }, connection.peer);
+    announcePresence('join', payload.player.id, connection.peer);
+  }
+  if (payload.type === 'presence') {
+    addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
+    if (payload.event === 'leave') {
+      remotePlayers.delete(payload.playerId);
+      renderPlayers();
+    }
+    if (isHost) broadcast(payload, connection.peer);
   }
   if (payload.type === 'chat') {
     const player = remotePlayers.get(payload.playerId);
@@ -652,21 +672,35 @@ function receive(connection, payload) {
     addChatMessage(payload.message, payload.sender);
     if (isHost) broadcast(payload, connection.peer);
   }
-  if (payload.type === 'snapshot') payload.players.forEach((player) => {
+  if (payload.type === 'snapshot') {
+    remotePlayers.clear();
+    payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
       remotePlayers.set(player.id, { ...player, targetX: player.x, targetY: player.y, peerId: connection.peer });
     }
-  });
+    });
+    renderPlayers();
+  }
 }
 
 function wireConnection(connection) {
   connections.set(connection.peer, connection);
   connection.on('data', (payload) => receive(connection, payload));
   connection.on('close', () => {
+    const removedPlayers = [];
     remotePlayers.forEach((player, playerId) => {
-      if (player.peerId === connection.peer) remotePlayers.delete(playerId);
+      if (player.peerId === connection.peer) {
+        remotePlayers.delete(playerId);
+        removedPlayers.push(playerId);
+      }
     });
     connections.delete(connection.peer);
+    if (isHost) removedPlayers.forEach((playerId) => announcePresence('leave', playerId, connection.peer));
+    else if (connection === hostConnection) {
+      remotePlayers.clear();
+      addChatMessage('La connexion à la prairie a été perdue.', 'Prairie');
+      setStatus('Prairie indisponible');
+    }
     renderPlayers();
   });
 }
@@ -713,6 +747,39 @@ function setJoystick(event) {
   joystickInput.y = Math.sin(angle) * distance / (radius - 26);
   stick.style.transform = `translate(${joystickInput.x * (radius - 26)}px, ${joystickInput.y * (radius - 26)}px)`;
 }
+
+function updateCameraZoom(nextZoom) {
+  cameraZoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, nextZoom));
+}
+
+function getPinchDistance() {
+  const points = [...zoomPointers.values()];
+  if (points.length < 2) return null;
+  return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+}
+
+canvas.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  updateCameraZoom(cameraZoom * (1 - event.deltaY * .001));
+}, { passive: false });
+canvas.addEventListener('pointerdown', (event) => {
+  if (event.pointerType !== 'touch') return;
+  zoomPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  pinchDistance = getPinchDistance();
+});
+canvas.addEventListener('pointermove', (event) => {
+  if (!zoomPointers.has(event.pointerId)) return;
+  zoomPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  const nextDistance = getPinchDistance();
+  if (pinchDistance && nextDistance) updateCameraZoom(cameraZoom * nextDistance / pinchDistance);
+  pinchDistance = nextDistance;
+});
+function releaseZoomPointer(event) {
+  zoomPointers.delete(event.pointerId);
+  pinchDistance = getPinchDistance();
+}
+canvas.addEventListener('pointerup', releaseZoomPointer);
+canvas.addEventListener('pointercancel', releaseZoomPointer);
 
 joystick.addEventListener('pointerdown', (event) => { joystickInput.active = true; joystickInput.pointerId = event.pointerId; joystick.setPointerCapture(event.pointerId); setJoystick(event); });
 joystick.addEventListener('pointermove', (event) => { if (joystickInput.active && event.pointerId === joystickInput.pointerId) setJoystick(event); });

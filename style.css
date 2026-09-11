@@ -15,7 +15,7 @@ body { color: var(--ink); font-family: Outfit, sans-serif; overflow: hidden; }
 button, input { font: inherit; }
 
 .game-shell { position: relative; width: 100vw; height: 100dvh; overflow: hidden; background: #315951; }
-#game { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+#game { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
 .speech-bubbles { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .speech-bubble { position: absolute; min-width: 42px; max-width: 176px; padding: 11px 15px; transform: translate(-50%, -100%); background-color: #19152a; background-image: url('Noelle/talkbox_ui_interior.png'); background-repeat: repeat; color: #f7f1de; font: 11px/1.35 'DM Mono', monospace; overflow-wrap: anywhere; text-align: center; image-rendering: pixelated; }
 .speech-bubble-text { position: relative; z-index: 2; }
@@ -122,6 +122,10 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
 .joystick-ring::after { content: ''; position: absolute; width: 1px; height: 100%; background: rgba(247,241,222,.1); }
 .joystick-ring::before { content: ''; position: absolute; width: 100%; height: 1px; background: rgba(247,241,222,.1); }
 .joystick-stick { position: relative; z-index: 1; width: 52px; height: 52px; border: 1px solid rgba(247,241,222,.65); border-radius: 50%; background: rgba(185,231,177,.88); box-shadow: 0 5px 18px rgba(0,0,0,.22); transition: transform .08s ease-out; }
+
+@media (hover: hover) and (pointer: fine) {
+  .joystick { display: none; }
+}
 
 @media (max-width: 620px) {
   .hud { padding: 12px 14px; }

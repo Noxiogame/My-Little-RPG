@@ -13,12 +13,17 @@ const chatInput = document.querySelector('#chat-input');
 const speechBubbles = document.querySelector('#speech-bubbles');
 const characterSwitch = document.querySelector('#character-switch');
 const eggReward = document.querySelector('#egg-reward');
+const eggCooldown = document.querySelector('#egg-cooldown');
 const eggModal = document.querySelector('#egg-modal');
 const eggClose = document.querySelector('#egg-close');
 const eggImage = document.querySelector('#egg-image');
 const eggShard = document.querySelector('#egg-shard');
 const eggProgress = document.querySelector('#egg-progress');
 const eggResult = document.querySelector('#egg-result');
+const skinModal = document.querySelector('#skin-modal');
+const skinClose = document.querySelector('#skin-close');
+const skinList = document.querySelector('#skin-list');
+const skinResult = document.querySelector('#skin-result');
 const coinAmount = document.querySelector('#coin-amount');
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
@@ -93,6 +98,13 @@ const eggTextures = {
 const eggRarities = ['Commune', 'Inhabituelle', 'Rare', 'Légendaire'];
 const eggRewards = [5, 15, 50, 200];
 const eggBreakChance = .2;
+const skins = [
+  { id: 'noelle', label: 'Noelle', rarity: 'Commune', price: 0 },
+  { id: 'noelle-alt', label: 'Noelle Alt', rarity: 'Inhabituelle', price: 60 },
+  { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
+  { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 220 },
+  { id: 'asgore', label: 'Asgore', rarity: 'Légendaire', price: 350 },
+];
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const session = loadSession();
 const eggState = { hits: 0, open: false, broken: false, cooldownUntil: session.cooldownUntil, shardTimer: null };
@@ -100,9 +112,11 @@ const eggState = { hits: 0, open: false, broken: false, cooldownUntil: session.c
 function loadSession() {
   try {
     const saved = JSON.parse(localStorage.getItem(sessionStorageKey) || '{}');
-    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ['noelle', 'noelle-alt', 'spamton', 'temmie', 'asgore'].includes(saved.character) ? saved.character : 'noelle' };
+    const ownedSkins = Array.isArray(saved.ownedSkins) ? saved.ownedSkins.filter((id) => skins.some((skin) => skin.id === id)) : [];
+    if (!ownedSkins.includes('noelle')) ownedSkins.unshift('noelle');
+    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ownedSkins.includes(saved.character) ? saved.character : 'noelle', ownedSkins };
   } catch {
-    return { coins: 0, cooldownUntil: 0, character: 'noelle' };
+    return { coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
   }
 }
 
@@ -112,6 +126,7 @@ function saveSession() {
       coins: session.coins,
       cooldownUntil: eggState.cooldownUntil,
       character: localPlayer.character,
+      ownedSkins: session.ownedSkins,
     }));
   } catch {
     // Storage can be unavailable in private browsing; the session remains usable.
@@ -128,6 +143,7 @@ function updateRewardUi() {
   const available = eggState.cooldownUntil <= Date.now();
   eggReward.disabled = !available;
   coinAmount.textContent = session.coins;
+  eggCooldown.textContent = available ? 'Disponible' : `Prochain Pipis dans ${formatCooldown()}`;
   if (!available && !eggState.open) eggReward.title = `Prochain Pipis dans ${formatCooldown()}`;
   else eggReward.title = 'Ouvrir le Pipis';
 }
@@ -543,15 +559,59 @@ function sendChatMessage(event) {
   chatInput.focus();
 }
 
-function switchCharacter() {
-  const characters = ['noelle', 'noelle-alt', 'spamton', 'temmie', 'asgore'];
-  const labels = { noelle: 'Noelle', 'noelle-alt': 'Noelle Alt', spamton: 'Spamton', temmie: 'Temmie', asgore: 'Asgore' };
-  const nextIndex = (characters.indexOf(localPlayer.character) + 1) % characters.length;
-  localPlayer.character = characters[nextIndex];
-  characterSwitch.firstChild.textContent = `${labels[localPlayer.character]} `;
+function openSkinLibrary() {
+  renderSkinLibrary();
+  skinResult.textContent = '';
+  skinModal.hidden = false;
+  skinClose.focus();
+}
+
+function closeSkinLibrary() {
+  skinModal.hidden = true;
+}
+
+function renderSkinLibrary() {
+  skinList.replaceChildren();
+  skins.forEach((skin) => {
+    const owned = session.ownedSkins.includes(skin.id);
+    const equipped = localPlayer.character === skin.id;
+    const item = document.createElement('article');
+    item.className = `skin-item${equipped ? ' is-equipped' : ''}`;
+    const preview = document.createElement('img');
+    const previewPath = skin.id === 'noelle-alt' ? 'Noelle/Alt/noelle_alt' : `${skin.id.charAt(0).toUpperCase()}${skin.id.slice(1)}/${skin.id}`;
+    preview.src = `${previewPath}_down2.png`;
+    preview.alt = skin.label;
+    const details = document.createElement('div');
+    details.className = 'skin-details';
+    details.innerHTML = `<strong>${skin.label}</strong><span>${skin.rarity}</span>`;
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'skin-action';
+    action.textContent = equipped ? 'Équipé' : owned ? 'Équiper' : `${skin.price} ¢`;
+    action.disabled = equipped;
+    action.addEventListener('click', () => chooseSkin(skin));
+    item.append(preview, details, action);
+    skinList.append(item);
+  });
+}
+
+function chooseSkin(skin) {
+  if (!session.ownedSkins.includes(skin.id)) {
+    if (session.coins < skin.price) {
+      skinResult.textContent = `Il te manque ${skin.price - session.coins} pièce${skin.price - session.coins > 1 ? 's' : ''}.`;
+      return;
+    }
+    session.coins -= skin.price;
+    session.ownedSkins.push(skin.id);
+  }
+  localPlayer.character = skin.id;
+  characterSwitch.firstChild.textContent = `${skin.label} `;
   localPlayer.speech = '';
   localPlayer.speechUntil = 0;
   saveSession();
+  updateRewardUi();
+  renderSkinLibrary();
+  skinResult.textContent = `${skin.label} est maintenant équipé.`;
   sendState();
 }
 
@@ -668,15 +728,17 @@ window.visualViewport?.addEventListener('resize', resize);
 window.addEventListener('pagehide', sendLeave);
 window.addEventListener('beforeunload', sendLeave);
 chatForm.addEventListener('submit', sendChatMessage);
-characterSwitch.addEventListener('click', switchCharacter);
+characterSwitch.addEventListener('click', openSkinLibrary);
 eggReward.addEventListener('click', openEgg);
 eggClose.addEventListener('click', closeEgg);
 eggModal.querySelector('.egg-modal-backdrop').addEventListener('click', closeEgg);
+skinClose.addEventListener('click', closeSkinLibrary);
+skinModal.querySelector('.skin-modal-backdrop').addEventListener('click', closeSkinLibrary);
 eggImage.addEventListener('click', hitEgg);
 eggImage.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); hitEgg(); }
 });
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
-characterSwitch.firstChild.textContent = { noelle: 'Noelle ', 'noelle-alt': 'Noelle Alt ', spamton: 'Spamton ', temmie: 'Temmie ', asgore: 'Asgore ' }[localPlayer.character];
+characterSwitch.firstChild.textContent = `${skins.find((skin) => skin.id === localPlayer.character).label} `;
 resize(); renderPlayers(); updateRewardUi(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);

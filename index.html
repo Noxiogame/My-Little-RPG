@@ -14,6 +14,7 @@
       <button id="egg-reward" class="egg-reward" type="button" aria-label="Ouvrir l'oeuf de récompense" title="Oeuf de récompense">
         <img src="Tilesets/pipis.png" alt="Oeuf de récompense" />
       </button>
+      <div id="egg-cooldown" class="egg-cooldown" aria-live="polite">Disponible</div>
       <div class="coin-wallet" aria-live="polite" title="Pièces gagnées avec les Pipis">
         <span class="coin-icon">¢</span>
         <span id="coin-amount">0</span>
@@ -30,6 +31,17 @@
           </div>
           <p id="egg-progress" class="egg-progress">0 / 12 frappes</p>
           <p id="egg-result" class="egg-result" aria-live="polite"></p>
+        </div>
+      </section>
+      <section id="skin-modal" class="skin-modal" aria-label="Bibliothèque de skins" hidden>
+        <div class="skin-modal-backdrop"></div>
+        <div class="skin-card" role="dialog" aria-modal="true" aria-labelledby="skin-title">
+          <button id="skin-close" class="egg-close" type="button" aria-label="Fermer">×</button>
+          <p class="egg-label">Collection personnelle</p>
+          <h2 id="skin-title">Bibliothèque de skins</h2>
+          <p class="skin-intro">Achète puis équipe ton personnage préféré.</p>
+          <div id="skin-list" class="skin-list"></div>
+          <p id="skin-result" class="skin-result" aria-live="polite"></p>
         </div>
       </section>
 

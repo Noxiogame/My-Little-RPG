@@ -1,10 +1,10 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.4';
-const status = document.querySelector('#status');
-const statusText = document.querySelector('#status-text');
-const playersElement = document.querySelector('#players');
+const APP_VERSION = '2026.09.11.7';
+const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
+const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
 const joystick = document.querySelector('#joystick');
 const stick = document.querySelector('#stick');
 const chatMessages = document.querySelector('#chat-messages');
@@ -12,7 +12,6 @@ const chatEmpty = document.querySelector('#chat-empty');
 const chatForm = document.querySelector('#chat-form');
 const chatInput = document.querySelector('#chat-input');
 const speechBubbles = document.querySelector('#speech-bubbles');
-const characterSwitch = document.querySelector('#character-switch');
 const eggReward = document.querySelector('#egg-reward');
 const eggCooldown = document.querySelector('#egg-cooldown');
 const eggModal = document.querySelector('#egg-modal');
@@ -26,6 +25,29 @@ const skinClose = document.querySelector('#skin-close');
 const skinList = document.querySelector('#skin-list');
 const skinResult = document.querySelector('#skin-result');
 const coinAmount = document.querySelector('#coin-amount');
+const mainMenu = document.querySelector('#main-menu');
+const authChoice = document.querySelector('#auth-choice');
+const showLogin = document.querySelector('#show-login');
+const showCreate = document.querySelector('#show-create');
+const authForm = document.querySelector('#auth-form');
+const authFormTitle = document.querySelector('#auth-form-title');
+const backAuth = document.querySelector('#back-auth');
+const newAccountName = document.querySelector('#new-account-name');
+const createAccount = document.querySelector('#create-account');
+const menuMessage = document.querySelector('#menu-message');
+const accountButton = document.querySelector('#account-button');
+const accountName = document.querySelector('#account-name');
+const accountModal = document.querySelector('#account-modal');
+const accountClose = document.querySelector('#account-close');
+const accountModalName = document.querySelector('#account-modal-name');
+const accountCoins = document.querySelector('#account-coins');
+const accountNickname = document.querySelector('#account-nickname');
+const saveNickname = document.querySelector('#save-nickname');
+const accountSkins = document.querySelector('#account-skins');
+const accountLogout = document.querySelector('#account-logout');
+const loginIdentifier = document.querySelector('#login-identifier');
+const loginPassword = document.querySelector('#login-password');
+const loginAccount = document.querySelector('#login-account');
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
 const MIN_CAMERA_ZOOM = .75;
@@ -118,30 +140,205 @@ const skins = [
     { id: 'villager', label: 'Villageois', rarity: 'Inhabituelle', price: 90, preview: 'Villageois/villager_down2.png' },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
+const accountsStorageKey = 'noelle-meadow-accounts-v1';
+const activeAccountStorageKey = 'noelle-meadow-active-account-v1';
 const session = loadSession();
 const eggState = { hits: 0, open: false, broken: false, cooldownUntil: session.cooldownUntil, shardTimer: null };
 
 function loadSession() {
   try {
-    const saved = JSON.parse(localStorage.getItem(sessionStorageKey) || '{}');
+    const legacy = JSON.parse(localStorage.getItem(sessionStorageKey) || '{}');
+    const accounts = JSON.parse(localStorage.getItem(accountsStorageKey) || '{}');
+    let activeName = localStorage.getItem(activeAccountStorageKey);
+    if (!Object.keys(accounts).length && Object.keys(legacy).length) {
+      accounts.Joueur = legacy;
+      localStorage.setItem(accountsStorageKey, JSON.stringify(accounts));
+    }
+    if (!activeName || !accounts[activeName]) activeName = Object.keys(accounts)[0] || 'Joueur';
+    const saved = accounts[activeName] || {};
     const ownedSkins = Array.isArray(saved.ownedSkins) ? saved.ownedSkins.filter((id) => skins.some((skin) => skin.id === id)) : [];
     if (!ownedSkins.includes('noelle')) ownedSkins.unshift('noelle');
-    return { coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ownedSkins.includes(saved.character) ? saved.character : 'noelle', ownedSkins };
+    if (accounts[activeName]) localStorage.setItem(activeAccountStorageKey, activeName);
+    return { accountName: activeName, nickname: saved.nickname || activeName, coins: Number.isFinite(saved.coins) ? saved.coins : 0, cooldownUntil: Number.isFinite(saved.cooldownUntil) ? saved.cooldownUntil : 0, character: ownedSkins.includes(saved.character) ? saved.character : 'noelle', ownedSkins };
   } catch {
-    return { coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
+    return { accountName: 'Joueur', nickname: 'Joueur', coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
   }
 }
 
 function saveSession() {
   try {
-    localStorage.setItem(sessionStorageKey, JSON.stringify({
+    const accountData = {
+      nickname: session.nickname,
       coins: session.coins,
       cooldownUntil: eggState.cooldownUntil,
       character: localPlayer.character,
       ownedSkins: session.ownedSkins,
-    }));
+    };
+    const accounts = JSON.parse(localStorage.getItem(accountsStorageKey) || '{}');
+    accounts[session.accountName] = accountData;
+    localStorage.setItem(accountsStorageKey, JSON.stringify(accounts));
+    localStorage.setItem(activeAccountStorageKey, session.accountName);
+    if (authClient) saveRemoteSession().catch(() => {});
   } catch {
     // Storage can be unavailable in private browsing; the session remains usable.
+  }
+}
+
+function authEmail(identifier) {
+  return `${identifier.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@accounts.laprairie.game`;
+}
+
+async function loadRemoteSession(user) {
+  if (!authClient) return;
+  const [{ data: profile }, { data: playerData }] = await Promise.all([
+    authClient.from('profiles').select('login_id,nickname').eq('user_id', user.id).single(),
+    authClient.from('player_data').select('coins,cooldown_until,equipped_skin,owned_skins').eq('user_id', user.id).single(),
+  ]);
+  if (profile) {
+    session.accountName = profile.login_id;
+    session.nickname = profile.nickname || profile.login_id;
+  }
+  if (playerData) {
+    session.coins = Number.isFinite(playerData.coins) ? playerData.coins : 0;
+    session.cooldownUntil = playerData.cooldown_until ? new Date(playerData.cooldown_until).getTime() : 0;
+    session.character = skins.some((skin) => skin.id === playerData.equipped_skin) ? playerData.equipped_skin : 'noelle';
+    session.ownedSkins = Array.isArray(playerData.owned_skins) ? playerData.owned_skins.filter((id) => skins.some((skin) => skin.id === id)) : ['noelle'];
+    if (!session.ownedSkins.includes('noelle')) session.ownedSkins.unshift('noelle');
+    localPlayer.character = session.character;
+    eggState.cooldownUntil = session.cooldownUntil;
+  }
+  localStorage.setItem(activeAccountStorageKey, session.accountName);
+  updateAccountUi();
+  updateRewardUi();
+}
+
+async function saveRemoteSession() {
+  const { data: authData } = await authClient.auth.getUser();
+  if (!authData.user) return;
+  await authClient.from('profiles').update({ nickname: session.nickname, updated_at: new Date().toISOString() }).eq('user_id', authData.user.id);
+  await authClient.from('player_data').upsert({ user_id: authData.user.id, coins: session.coins, cooldown_until: eggState.cooldownUntil ? new Date(eggState.cooldownUntil).toISOString() : null, equipped_skin: localPlayer.character, owned_skins: session.ownedSkins, updated_at: new Date().toISOString() });
+}
+
+function updateAccountUi() {
+  accountName.textContent = session.accountName;
+  accountModalName.textContent = session.accountName;
+  accountCoins.textContent = session.coins;
+  accountNickname.value = session.nickname;
+}
+
+function enterGame() {
+  localStorage.setItem(activeAccountStorageKey, session.accountName);
+  saveSession();
+  mainMenu.hidden = true;
+  updateAccountUi();
+}
+
+function showAuthForm(mode) {
+  const creating = mode === 'create';
+  authChoice.hidden = true;
+  authForm.hidden = false;
+  authFormTitle.textContent = creating ? 'Créer un compte' : 'Se connecter';
+  loginAccount.hidden = creating;
+  createAccount.hidden = !creating;
+  newAccountName.hidden = !creating;
+  menuMessage.textContent = '';
+  loginIdentifier.focus();
+}
+
+function hideAuthForm() {
+  authForm.hidden = true;
+  authChoice.hidden = false;
+  menuMessage.textContent = '';
+}
+
+function createLocalAccount() {
+  const name = newAccountName.value.trim().replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 18);
+  if (name.length < 2) {
+    menuMessage.textContent = 'Choisissez un nom de 2 caractères minimum.';
+    return;
+  }
+  const accounts = JSON.parse(localStorage.getItem(accountsStorageKey) || '{}');
+  if (accounts[name]) {
+    menuMessage.textContent = 'Ce compte existe déjà.';
+    return;
+  }
+  accounts[name] = { coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
+  localStorage.setItem(accountsStorageKey, JSON.stringify(accounts));
+  localStorage.setItem(activeAccountStorageKey, name);
+  window.location.reload();
+}
+
+function openAccount() {
+  updateAccountUi();
+  accountModal.hidden = false;
+  accountClose.focus();
+}
+
+function closeAccount() {
+  accountModal.hidden = true;
+}
+
+function logoutAccount() {
+  const logout = authClient ? authClient.auth.signOut() : Promise.resolve();
+  logout.finally(() => {
+    localStorage.removeItem(activeAccountStorageKey);
+    window.location.reload();
+  });
+}
+
+async function signInAccount() {
+  const identifier = loginIdentifier.value.trim();
+  const password = loginPassword.value;
+  if (!identifier || password.length < 8) {
+    menuMessage.textContent = 'Identifiant et mot de passe de 8 caractères minimum requis.';
+    return;
+  }
+  loginAccount.disabled = true;
+  const { error } = await authClient.auth.signInWithPassword({ email: authEmail(identifier), password });
+  if (error) menuMessage.textContent = error.message;
+  else window.location.reload();
+  loginAccount.disabled = false;
+}
+
+async function createRemoteAccount() {
+  const nickname = newAccountName.value.trim();
+  const identifier = loginIdentifier.value.trim();
+  const password = loginPassword.value;
+  if (nickname.length < 2 || identifier.length < 3 || password.length < 8) {
+    menuMessage.textContent = 'Pseudo, identifiant et mot de passe valide requis.';
+    return;
+  }
+  createAccount.disabled = true;
+  const { data, error } = await authClient.auth.signUp({ email: authEmail(identifier), password, options: { data: { login_id: identifier, nickname } } });
+  if (error) {
+    menuMessage.textContent = error.message;
+  } else if (data.session) {
+    window.location.reload();
+  } else {
+    menuMessage.textContent = 'Compte créé. Vérifiez votre inscription puis connectez-vous.';
+  }
+  createAccount.disabled = false;
+}
+
+async function saveAccountNickname() {
+  const nickname = accountNickname.value.trim();
+  if (nickname.length < 2) return;
+  session.nickname = nickname;
+  saveSession();
+  updateAccountUi();
+}
+
+async function initializeAuth() {
+  if (!authClient) {
+    mainMenu.hidden = Boolean(localStorage.getItem(activeAccountStorageKey));
+    return;
+  }
+  const { data } = await authClient.auth.getSession();
+  if (data.session) {
+    await loadRemoteSession(data.session.user);
+    mainMenu.hidden = true;
+  } else {
+    mainMenu.hidden = false;
   }
 }
 
@@ -310,11 +507,6 @@ function resize() {
   context.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
   context.imageSmoothingEnabled = false;
   createWorldMap();
-}
-
-function setStatus(text, state = 'solo') {
-  statusText.textContent = text;
-  status.dataset.state = state;
 }
 
 function drawWorld() {
@@ -645,7 +837,6 @@ function chooseSkin(skin) {
     session.ownedSkins.push(skin.id);
   }
   localPlayer.character = skin.id;
-  characterSwitch.firstChild.textContent = `${skin.label} `;
   localPlayer.speech = '';
   localPlayer.speechUntil = 0;
   saveSession();
@@ -659,7 +850,6 @@ function receive(connection, payload) {
   if (!payload || !payload.type) return;
   if (payload.type === 'leave') {
     remotePlayers.delete(payload.playerId);
-    renderPlayers();
     if (isHost) announcePresence('leave', payload.playerId, connection.peer);
     return;
   }
@@ -677,7 +867,6 @@ function receive(connection, payload) {
     };
     remotePlayers.set(payload.player.id, player);
     if (isHost) broadcast(payload, connection.peer);
-    renderPlayers();
   }
   if (payload.type === 'hello' && isHost) {
     if (payload.version && payload.version !== APP_VERSION) {
@@ -696,7 +885,6 @@ function receive(connection, payload) {
     addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
     if (payload.event === 'leave') {
       remotePlayers.delete(payload.playerId);
-      renderPlayers();
     }
     if (isHost) broadcast(payload, connection.peer);
   }
@@ -716,7 +904,6 @@ function receive(connection, payload) {
       remotePlayers.set(player.id, { ...player, targetX: player.x, targetY: player.y, peerId: connection.peer });
     }
     });
-    renderPlayers();
   }
 }
 
@@ -736,9 +923,7 @@ function wireConnection(connection) {
     else if (connection === hostConnection) {
       remotePlayers.clear();
       addChatMessage('La connexion à la prairie a été perdue.', 'Prairie');
-      setStatus('Prairie indisponible');
     }
-    renderPlayers();
   });
 }
 
@@ -752,25 +937,21 @@ function sendLeave() {
 }
 
 function createPeer() {
-  if (!window.Peer) { setStatus('Mode solo'); return; }
+  if (!window.Peer) return;
   const hostId = `noelle-meadow-${ROOM_ID}`;
   peer = new Peer(hostId);
-  peer.on('open', () => { isHost = true; setStatus('Prairie partagée', 'online'); });
+  peer.on('open', () => { isHost = true; });
   peer.on('connection', (connection) => { wireConnection(connection); connection.on('open', () => connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] })); });
   peer.on('error', (error) => {
     if (error.type === 'unavailable-id') connectToHost(hostId);
-    else setStatus('Mode solo');
+    else isHost = false;
   });
 }
 
 function connectToHost(hostId) {
   peer?.destroy(); peer = new Peer();
-  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer }); setStatus('Prairie partagée', 'online'); }); });
-  peer.on('error', () => setStatus('Prairie indisponible'));
-}
-
-function renderPlayers() {
-  playersElement.textContent = remotePlayers.size ? `${remotePlayers.size + 1} joueur${remotePlayers.size > 0 ? 's' : ''} dans la prairie` : '';
+  peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer }); }); });
+  peer.on('error', () => {});
 }
 
 function setJoystick(event) {
@@ -836,7 +1017,18 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pageshow', checkForNewVersion);
 chatForm.addEventListener('submit', sendChatMessage);
-characterSwitch.addEventListener('click', openSkinLibrary);
+accountButton.addEventListener('click', openAccount);
+accountClose.addEventListener('click', closeAccount);
+accountModal.querySelector('.account-modal-backdrop').addEventListener('click', closeAccount);
+accountSkins.addEventListener('click', () => { closeAccount(); openSkinLibrary(); });
+accountLogout.addEventListener('click', logoutAccount);
+showLogin.addEventListener('click', () => showAuthForm('login'));
+showCreate.addEventListener('click', () => showAuthForm('create'));
+backAuth.addEventListener('click', hideAuthForm);
+loginAccount.addEventListener('click', () => authClient ? signInAccount() : enterGame());
+createAccount.addEventListener('click', () => authClient ? createRemoteAccount() : createLocalAccount());
+saveNickname.addEventListener('click', saveAccountNickname);
+newAccountName.addEventListener('keydown', (event) => { if (event.key === 'Enter') (authClient ? createRemoteAccount() : createLocalAccount()); });
 eggReward.addEventListener('click', openEgg);
 eggClose.addEventListener('click', closeEgg);
 eggModal.querySelector('.egg-modal-backdrop').addEventListener('click', closeEgg);
@@ -850,5 +1042,7 @@ setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
 setInterval(checkForNewVersion, 30000);
 checkForNewVersion();
-characterSwitch.firstChild.textContent = `${skins.find((skin) => skin.id === localPlayer.character).label} `;
-resize(); renderPlayers(); updateRewardUi(); setStatus('Connexion...'); createPeer(); requestAnimationFrame(frame);
+updateAccountUi();
+mainMenu.hidden = false;
+resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
+initializeAuth().catch(() => { mainMenu.hidden = false; });

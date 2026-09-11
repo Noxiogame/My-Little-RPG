@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#101b1a" />
-    <meta name="app-version" content="2026.09.11.4" />
-    <title>Noelle's Meadow</title>
+    <meta name="app-version" content="2026.09.11.7" />
+    <title>La Prairie</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -47,18 +47,10 @@
       </section>
 
       <header class="hud">
-        <div class="brand">
-          <span class="brand-mark">N</span>
-          <div>
-            <p class="eyebrow">NOELLE'S MEADOW</p>
-            <h1>La prairie</h1>
-          </div>
-          <button id="character-switch" class="character-switch" type="button" aria-label="Changer de personnage" title="Changer de personnage">Noelle <span aria-hidden="true">&#8644;</span></button>
-        </div>
-        <div class="online-status" id="status" data-state="solo">
-          <span class="status-dot"></span>
-          <span id="status-text">Mode solo</span>
-        </div>
+        <button id="account-button" class="account-button" type="button" aria-label="Ouvrir le compte" title="Compte">
+          <span class="account-avatar">N</span>
+          <span id="account-name">Compte</span>
+        </button>
       </header>
 
       <section class="chat-panel" aria-label="Tchat de la prairie">
@@ -76,13 +68,49 @@
       </section>
 
       <div class="hint"><span class="key">ZQSD</span> ou joystick pour se déplacer</div>
-      <div id="players" class="players" aria-live="polite"></div>
-
       <div id="joystick" class="joystick" aria-label="Joystick de déplacement">
         <div class="joystick-ring"><div id="stick" class="joystick-stick"></div></div>
       </div>
     </main>
 
+    <section id="main-menu" class="main-menu" aria-label="Menu principal">
+      <div class="main-menu-card">
+        <h2>Bienvenue dans la prairie</h2>
+        <p class="menu-copy">Connectez-vous pour retrouver vos pièces et votre bibliothèque de skins.</p>
+        <div id="auth-choice" class="auth-choice">
+          <button id="show-login" class="menu-primary" type="button">Se connecter</button>
+          <button id="show-create" class="menu-secondary" type="button">Créer un compte</button>
+        </div>
+        <div id="auth-form" class="auth-form" hidden>
+          <p id="auth-form-title" class="auth-form-title">Se connecter</p>
+          <input id="login-identifier" class="account-field" maxlength="32" autocomplete="username" placeholder="Identifiant" aria-label="Identifiant" />
+          <input id="login-password" class="account-field" type="password" autocomplete="current-password" placeholder="Mot de passe" aria-label="Mot de passe" />
+          <input id="new-account-name" class="account-field" maxlength="18" autocomplete="nickname" placeholder="Pseudo" aria-label="Pseudo" hidden />
+          <div class="auth-actions">
+            <button id="login-account" class="menu-primary" type="button">Se connecter</button>
+            <button id="create-account" class="menu-primary" type="button" hidden>Créer le compte</button>
+            <button id="back-auth" class="menu-secondary" type="button">Retour</button>
+          </div>
+        </div>
+        <p id="menu-message" class="menu-message" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="account-modal" class="account-modal" aria-label="Compte" hidden>
+      <div class="account-modal-backdrop"></div>
+      <div class="account-card" role="dialog" aria-modal="true" aria-labelledby="account-title">
+        <button id="account-close" class="egg-close" type="button" aria-label="Fermer">×</button>
+        <p class="egg-label">Profil local</p>
+        <h2 id="account-title"><span id="account-modal-name">Compte</span></h2>
+        <p class="account-balance"><span class="coin-icon">¢</span> <span id="account-coins">0</span> pièces</p>
+        <input id="account-nickname" class="account-field" maxlength="18" autocomplete="nickname" placeholder="Pseudo" aria-label="Pseudo" />
+        <button id="save-nickname" class="menu-secondary" type="button">Enregistrer le pseudo</button>
+        <button id="account-skins" class="menu-primary" type="button">Ouvrir la bibliothèque de skins</button>
+        <button id="account-logout" class="menu-secondary" type="button">Se déconnecter</button>
+      </div>
+    </section>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script src="game.js"></script>
   </body>

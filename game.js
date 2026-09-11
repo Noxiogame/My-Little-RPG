@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.11.11';
+const APP_VERSION = '2026.09.11.13';
 const SUPABASE_URL = 'https://izqjuvgwlienoxjbftle.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7O1ZXIgr6kKHJVrYjoq7cg_1n2fi36Y';
 const authClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9,6 +9,7 @@ const authSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).s
 let authPresenceChannel = null;
 let authUserId = null;
 let authSessionLost = false;
+let isAuthenticated = false;
 const joystick = document.querySelector('#joystick');
 const stick = document.querySelector('#stick');
 const chatMessages = document.querySelector('#chat-messages');
@@ -215,7 +216,9 @@ async function releaseAuthSession(message = '') {
   }
   await authClient.auth.signOut({ scope: 'local' }).catch(() => {});
   localStorage.removeItem(activeAccountStorageKey);
-  mainMenu.hidden = false;
+  isAuthenticated = false;
+  mainMenu.hidden = true;
+  updateAccountUi();
   hideAuthForm();
   if (message) menuMessage.textContent = message;
 }
@@ -283,7 +286,7 @@ async function saveRemoteSession() {
 }
 
 function updateAccountUi() {
-  accountName.textContent = session.accountName;
+  accountName.textContent = isAuthenticated ? session.accountName : 'Invité';
   accountModalName.textContent = session.accountName;
   accountCoins.textContent = session.coins;
   accountNickname.value = session.nickname;
@@ -328,10 +331,24 @@ function createLocalAccount() {
   accounts[name] = { coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
   localStorage.setItem(accountsStorageKey, JSON.stringify(accounts));
   localStorage.setItem(activeAccountStorageKey, name);
-  window.location.reload();
+  session.accountName = name;
+  session.nickname = name;
+  session.coins = 0;
+  session.cooldownUntil = 0;
+  session.character = 'noelle';
+  session.ownedSkins = ['noelle'];
+  localPlayer.character = 'noelle';
+  updateAccountUi();
+  mainMenu.hidden = true;
 }
 
 function openAccount() {
+  if (!isAuthenticated) {
+    mainMenu.hidden = false;
+    hideAuthForm();
+    showLogin.focus();
+    return;
+  }
   updateAccountUi();
   accountModal.hidden = false;
   accountClose.focus();
@@ -353,8 +370,14 @@ function logoutAccount() {
   const logout = authClient ? authClient.auth.signOut({ scope: 'local' }) : Promise.resolve();
   logout.finally(() => {
     if (authPresenceChannel) authClient.removeChannel(authPresenceChannel);
+    authPresenceChannel = null;
+    authUserId = null;
+    authSessionLost = false;
+    isAuthenticated = false;
     localStorage.removeItem(activeAccountStorageKey);
-    window.location.reload();
+    mainMenu.hidden = true;
+    accountModal.hidden = true;
+    updateAccountUi();
   });
 }
 
@@ -366,9 +389,16 @@ async function signInAccount() {
     return;
   }
   loginAccount.disabled = true;
-  const { error } = await authClient.auth.signInWithPassword({ email: authEmail(identifier), password });
+  const { data, error } = await authClient.auth.signInWithPassword({ email: authEmail(identifier), password });
   if (error) menuMessage.textContent = showAuthError(error);
-  else window.location.reload();
+  else if (data.user) {
+    await loadRemoteSession(data.user);
+    if (await claimAuthSession(data.user.id)) {
+      isAuthenticated = true;
+      mainMenu.hidden = true;
+      updateAccountUi();
+    }
+  }
   loginAccount.disabled = false;
 }
 
@@ -385,7 +415,12 @@ async function createRemoteAccount() {
   if (error) {
     menuMessage.textContent = showAuthError(error);
   } else if (data.session) {
-    window.location.reload();
+    await loadRemoteSession(data.session.user);
+    if (await claimAuthSession(data.session.user.id)) {
+      isAuthenticated = true;
+      mainMenu.hidden = true;
+      updateAccountUi();
+    }
   } else {
     menuMessage.textContent = 'Compte créé. Connectez-vous avec votre identifiant.';
   }
@@ -402,16 +437,20 @@ async function saveAccountNickname() {
 
 async function initializeAuth() {
   if (!authClient) {
-    mainMenu.hidden = Boolean(localStorage.getItem(activeAccountStorageKey));
+    mainMenu.hidden = true;
     return;
   }
   const { data } = await authClient.auth.getSession();
   if (data.session) {
     await loadRemoteSession(data.session.user);
     if (!await claimAuthSession(data.session.user.id)) return;
+    isAuthenticated = true;
+    updateAccountUi();
     mainMenu.hidden = true;
   } else {
-    mainMenu.hidden = false;
+    isAuthenticated = false;
+    updateAccountUi();
+    mainMenu.hidden = true;
   }
 }
 
@@ -926,17 +965,9 @@ function receive(connection, payload) {
     if (isHost) broadcast(payload, connection.peer);
   }
   if (payload.type === 'hello' && isHost) {
-    if (payload.version && payload.version !== APP_VERSION) {
-      connection.send({ type: 'reload', version: APP_VERSION });
-      return;
-    }
     connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
     broadcast({ type: 'state', player: localPlayer }, connection.peer);
     announcePresence('join', payload.player.id, connection.peer);
-  }
-  if (payload.type === 'reload') {
-    window.location.reload();
-    return;
   }
   if (payload.type === 'presence') {
     addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
@@ -1098,6 +1129,6 @@ setInterval(updateRewardUi, 1000);
 updateAccountUi();
 chatPanel.hidden = true;
 chatToggle.setAttribute('aria-expanded', 'false');
-mainMenu.hidden = false;
+mainMenu.hidden = true;
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
-initializeAuth().catch(() => { mainMenu.hidden = false; });
+initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });

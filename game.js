@@ -98,6 +98,8 @@ const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((n
   return [name, image];
 }));
 
+const directions = ['down', 'left', 'right', 'up'];
+
 const skinPaths = {
   noelle: { folder: 'Noelle', prefix: 'noelle' },
   'noelle-alt': { folder: 'Noelle/Alt', prefix: 'noelle_alt' },
@@ -113,21 +115,6 @@ const skinPaths = {
   villager: { folder: 'Villageois', prefix: 'villager' },
 };
 
-const spriteFrameCounts = {
-  noelle: { down: 4, left: 4, right: 4, up: 4 },
-  'noelle-alt': { down: 4, left: 4, right: 4, up: 4 },
-  spamton: { down: 4, left: 4, right: 4, up: 4 },
-  temmie: { down: 4, left: 4, right: 4, up: 4 },
-  asgore: { down: 4, left: 4, right: 4, up: 4 },
-  jevil: { down: 4, left: 4, right: 4, up: 4 },
-  papyrus: { down: 4, left: 4, right: 4, up: 4 },
-  sans: { down: 4, left: 4, right: 4, up: 4 },
-  undyne: { down: 4, left: 2, right: 4, up: 4 },
-  foxy: { down: 4, left: 4, right: 4, up: 4 },
-  pikachu: { down: 4, left: 4, right: 4, up: 4 },
-  villager: { down: 4, left: 4, right: 4, up: 4 },
-};
-
 function createSprite(character, direction, frame) {
   const image = new Image();
   const skin = skinPaths[character] || skinPaths.noelle;
@@ -138,26 +125,50 @@ function createSprite(character, direction, frame) {
 }
 
 function getSpriteFrameCount(character, direction) {
-  const countsByDirection = spriteFrameCounts[character];
-  if (countsByDirection && Number.isInteger(countsByDirection[direction])) return countsByDirection[direction];
-  return 4;
+  const frames = characterSprites?.[character]?.[direction];
+  return Array.isArray(frames) ? frames.length : 0;
 }
 
-function createAnimationFrames(character, direction) {
-  const frameCount = getSpriteFrameCount(character, direction);
-  return Array.from({ length: frameCount }, (_, index) => createSprite(character, direction, index + 1));
+async function probeSpriteFrame(character, direction, frame) {
+  return new Promise((resolve) => {
+    const sprite = createSprite(character, direction, frame);
+    const done = (valid) => resolve({ valid, sprite: valid ? sprite : null });
+    const onLoad = () => {
+      if (sprite.complete && sprite.naturalWidth > 0) done(true);
+      else done(false);
+    };
+    sprite.addEventListener('load', onLoad, { once: true });
+    sprite.addEventListener('error', () => done(false), { once: true });
+    if (sprite.complete && sprite.naturalWidth > 0) done(true);
+  });
+}
+
+async function loadCharacterSprites() {
+  const maxFrames = 12;
+  for (const character of Object.keys(skinPaths)) {
+    const spritesByDirection = {};
+    for (const direction of directions) {
+      const frames = [];
+      for (let frame = 1; frame <= maxFrames; frame += 1) {
+        const { valid, sprite } = await probeSpriteFrame(character, direction, frame);
+        if (!valid || !sprite) break;
+        frames.push(sprite);
+      }
+      spritesByDirection[direction] = frames;
+    }
+    characterSprites[character] = spritesByDirection;
+  }
 }
 
 const characterSprites = Object.fromEntries(
-  Object.keys(skinPaths).map((character) => [
-    character,
-    Object.fromEntries(['down', 'left', 'right', 'up'].map((direction) => [direction, createAnimationFrames(character, direction)])),
-  ]),
+  Object.keys(skinPaths).map((character) => [character, Object.fromEntries(directions.map((direction) => [direction, []]))]),
 );
 
+loadCharacterSprites();
+
 function getAnimationFrameIndex(player, frames = []) {
-  if (!player?.moving || !player?.character) return 0;
-  const frameCount = Array.isArray(frames) && frames.length > 0 ? frames.length : 1;
+  if (!player?.moving || !player?.character || !Array.isArray(frames) || frames.length === 0) return 0;
+  const frameCount = frames.length;
   const speedRatio = Number.isFinite(player.movementSpeed) ? Math.max(.2, Math.min(1.75, player.movementSpeed)) : 1;
   const frameDuration = 240 / speedRatio;
   return Math.floor(animationTime / frameDuration) % frameCount;
@@ -169,9 +180,11 @@ function updateSkinLibraryAnimations() {
   previews.forEach((preview) => {
     const skinId = preview.dataset.skinId;
     const selectedSprites = characterSprites[skinId] || characterSprites.noelle;
-    const frameCount = selectedSprites.down?.length ? selectedSprites.down.length : 1;
+    const frames = selectedSprites.down || [];
+    if (!frames.length) return;
+    const frameCount = frames.length;
     const frameIndex = Math.floor(animationTime / 180) % frameCount;
-    const image = selectedSprites.down?.[frameIndex] || selectedSprites.down?.[0];
+    const image = frames[frameIndex] || frames[0];
     if (image) preview.src = image.src;
   });
 }
@@ -710,7 +723,8 @@ function worldToScreen(x, y) {
 
 function drawPlayer(player, isLocal = false) {
   const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
-  const imageFrames = selectedSprites[player.direction] || selectedSprites.down;
+  const imageFrames = selectedSprites?.[player.direction] || selectedSprites?.down || [];
+  if (!Array.isArray(imageFrames) || imageFrames.length === 0) return;
   const frame = getAnimationFrameIndex(player, imageFrames);
   const image = imageFrames[frame] || imageFrames[0];
   if (!image) return;
@@ -1006,6 +1020,27 @@ function chooseSkin(skin) {
   sendState();
 }
 
+function removeRemotePlayerByPeer(peerId) {
+  const removedPlayers = [];
+  remotePlayers.forEach((player, playerId) => {
+    if (player.peerId === peerId) {
+      remotePlayers.delete(playerId);
+      removedPlayers.push(playerId);
+    }
+  });
+  return removedPlayers;
+}
+
+function closeConnection(connection, silent = false) {
+  if (!connection) return [];
+  const removedPlayers = removeRemotePlayerByPeer(connection.peer);
+  connections.delete(connection.peer);
+  if (connection === hostConnection) hostConnection = null;
+  try { connection.close(); } catch {}
+  if (!silent && removedPlayers.length && isHost) removedPlayers.forEach((playerId) => announcePresence('leave', playerId, connection.peer));
+  return removedPlayers;
+}
+
 function receive(connection, payload) {
   if (!payload || !payload.type) return;
   if (payload.type === 'leave') {
@@ -1060,23 +1095,29 @@ function receive(connection, payload) {
 }
 
 function wireConnection(connection) {
+  if (!connection || !connection.peer) return;
   connections.set(connection.peer, connection);
   connection.on('data', (payload) => receive(connection, payload));
   connection.on('close', () => {
-    const removedPlayers = [];
-    remotePlayers.forEach((player, playerId) => {
-      if (player.peerId === connection.peer) {
-        remotePlayers.delete(playerId);
-        removedPlayers.push(playerId);
-      }
-    });
+    const removedPlayers = removeRemotePlayerByPeer(connection.peer);
     connections.delete(connection.peer);
+    if (connection === hostConnection) hostConnection = null;
     if (isHost) removedPlayers.forEach((playerId) => announcePresence('leave', playerId, connection.peer));
     else if (connection === hostConnection) {
       remotePlayers.clear();
       addChatMessage('La connexion à la prairie a été perdue.', 'Prairie');
     }
   });
+}
+
+function closeAllConnections() {
+  const connectionsSnapshot = [...connections.values()];
+  connectionsSnapshot.forEach((connection) => closeConnection(connection, true));
+  if (hostConnection && !connections.has(hostConnection.peer)) {
+    try { hostConnection.close(); } catch {}
+    hostConnection = null;
+  }
+  remotePlayers.clear();
 }
 
 let leaveSent = false;
@@ -1086,11 +1127,21 @@ function sendLeave() {
   const payload = { type: 'leave', playerId: localPlayer.id };
   if (isHost) broadcast(payload);
   else if (hostConnection?.open) hostConnection.send(payload);
+  if (peer) {
+    try { peer.destroy(); } catch {}
+    peer = null;
+  }
+  closeAllConnections();
 }
 
 function createPeer() {
   if (!window.Peer) return;
   const hostId = `noelle-meadow-${ROOM_ID}`;
+  if (peer) {
+    try { peer.destroy(); } catch {}
+    peer = null;
+  }
+  closeAllConnections();
   peer = new Peer(hostId);
   peer.on('open', () => { isHost = true; });
   peer.on('connection', (connection) => { wireConnection(connection); connection.on('open', () => connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] })); });
@@ -1101,7 +1152,12 @@ function createPeer() {
 }
 
 function connectToHost(hostId) {
-  peer?.destroy(); peer = new Peer();
+  if (peer) {
+    try { peer.destroy(); } catch {}
+    peer = null;
+  }
+  closeAllConnections();
+  peer = new Peer();
   peer.on('open', () => { hostConnection = peer.connect(hostId, { reliable: true }); wireConnection(hostConnection); hostConnection.on('open', () => { hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer }); }); });
   peer.on('error', () => {});
 }

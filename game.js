@@ -1,7 +1,7 @@
 ﻿const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.084250318';
+const APP_VERSION = '2026.09.12.084513224';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -901,6 +901,8 @@ let hostConnection = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let peerServerIndex = 0;
+let localSyncChannel = null;
+let localSyncEnabled = false;
 
 function getPeerServerConfig() {
   const base = PEERJS_SERVER_CANDIDATES[Math.min(peerServerIndex, PEERJS_SERVER_CANDIDATES.length - 1)] || { host: '0.peerjs.com', secure: true, port: 443, path: '/' };
@@ -915,6 +917,21 @@ function switchPeerServer() {
 function peerJsConnectionError(error) {
   const text = `${error?.type || ''} ${error?.message || ''}`.toLowerCase();
   return text.includes('server') || text.includes('network') || text.includes('unavailable') || text.includes('429') || text.includes('websocket') || text.includes('handshake');
+}
+
+function enableLocalSyncFallback() {
+  if (localSyncEnabled || !('BroadcastChannel' in window)) return;
+  localSyncEnabled = true;
+  localSyncChannel = new BroadcastChannel(`noelle-meadow-${ROOM_ID}`);
+  localSyncChannel.addEventListener('message', (event) => {
+    const payload = event.data;
+    if (!payload || !payload.type) return;
+    if (payload.senderId === localPlayer.id) return;
+    if (payload.player?.id === localPlayer.id) return;
+    if (payload.playerId === localPlayer.id) return;
+    const localConnection = { peer: payload.player?.id || payload.playerId || payload.sender || `local-${Math.random().toString(36).slice(2, 8)}`, open: true, send: null, close() {} };
+    receive(localConnection, payload);
+  });
 }
 
 function scheduleReconnect(immediate = false) {
@@ -1511,10 +1528,23 @@ function sendState() {
   };
   if (isHost) broadcast(payload);
   else if (hostConnection?.open) hostConnection.send(payload);
+  else if (localSyncEnabled && localSyncChannel) localSyncChannel.postMessage({ ...payload, senderId: localPlayer.id });
 }
 
 function broadcast(payload, exceptId = null) {
   connections.forEach((connection, id) => { if (id !== exceptId && connection.open) connection.send(payload); });
+  if (localSyncEnabled && localSyncChannel) {
+    const nextPayload = { ...payload, senderId: localPlayer.id };
+    if (payload.player?.id && payload.player.id !== localPlayer.id) localSyncChannel.postMessage(nextPayload);
+    else if (!payload.playerId || payload.playerId !== localPlayer.id) localSyncChannel.postMessage(nextPayload);
+  }
+}
+
+function initializeLocalSyncFallback() {
+  enableLocalSyncFallback();
+  if (localSyncEnabled && localSyncChannel) {
+    localSyncChannel.postMessage({ type: 'hello', version: APP_VERSION, player: localPlayer, senderId: localPlayer.id });
+  }
 }
 
 function announcePresence(event, playerId, exceptId = null) {
@@ -1779,6 +1809,7 @@ function createPeer() {
       createPeer();
       return;
     }
+    enableLocalSyncFallback();
     isHost = false;
     if (!versionMismatchTriggered) scheduleReconnect();
   });
@@ -1813,6 +1844,7 @@ function connectToHost(hostId) {
       connectToHost(hostId);
       return;
     }
+    enableLocalSyncFallback();
     if (!versionMismatchTriggered) scheduleReconnect();
   });
 }
@@ -1968,7 +2000,9 @@ chatPanel.hidden = true;
 chatToggle.setAttribute('aria-expanded', 'false');
 mainMenu.hidden = true;
 checkForGameVersion();
-resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
+resize(); updateRewardUi(); enableLocalSyncFallback(); createPeer(); requestAnimationFrame(frame);
+initializeLocalSyncFallback();
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });
+
 
 

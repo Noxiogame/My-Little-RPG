@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.180129899';
+const APP_VERSION = '2026.09.12.203027035';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -267,6 +267,9 @@ const skinPaths = {
   lefty: { folder: 'Characters/Lefty', prefix: 'lefty' },
   'toy-bonnie': { folder: 'Characters/ToyBonnie', prefix: 'toy_bonnie' },
   'withered-bonnie': { folder: 'Characters/WitheredBonnie', prefix: 'withered_bonnie' },
+  freddy: { folder: 'Characters/Freddy', prefix: 'freddy' },
+  bonnie: { folder: 'Characters/Bonnie', prefix: 'bonnie' },
+  chica: { folder: 'Characters/Chica', prefix: 'chica' },
   villager: { folder: 'Characters/Villageois', prefix: 'villager' },
   'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
 };
@@ -284,6 +287,8 @@ const spriteFrameCountOverrides = {
   steve: { left: 0, right: 0, side: 4 },
   'balloon-boy': { left: 0, right: 0, side: 4 },
   villager: { left: 0, right: 0, side: 4 },
+  freddy: { left: 0, right: 0, side: 4 },
+  chica: { left: 0, right: 0, side: 4 },
 };
 const characterEmotes = {
   jevil: {
@@ -297,8 +302,19 @@ const characterEmotes = {
   spamton: {
     default: { prefix: 'spamton_dance', frameCount: 28, frameDuration: 140, mode: 'loop' },
   },
+  'balloon-boy': {
+    default: {
+      prefix: 'balloon_boy_taunt',
+      frameCount: 2,
+      frameDuration: 180,
+      duration: 3000,
+      sounds: ['balloon_boy_laugh1.wav', 'balloon_boy_laugh2.wav', 'balloon_boy_laugh3.wav'],
+      mode: 'action',
+    },
+  },
 };
 const characterEmoteSprites = {};
+const characterEmoteSounds = {};
 const emoteLoadPromises = new Map();
 
 function getSpriteFrameLimit(character, direction) {
@@ -321,6 +337,38 @@ function createEmoteSprite(character, emote, frame) {
   const suffix = emote.frameSuffix === false ? '' : frame;
   image.src = `${folder}${emote.prefix}${suffix}.png`;
   return image;
+}
+
+function ensureCharacterEmoteSounds(character, emoteKey) {
+  const emote = characterEmotes[character]?.[emoteKey];
+  if (!emote?.sounds?.length) return [];
+  characterEmoteSounds[character] ||= {};
+  if (characterEmoteSounds[character][emoteKey]) return characterEmoteSounds[character][emoteKey];
+  const skin = skinPaths[character] || skinPaths.noelle;
+  const folder = skin.folder ? `${skin.folder}/` : '';
+  const sounds = emote.sounds.map((soundPath) => {
+    const audio = new Audio(`${folder}${soundPath}`);
+    audio.preload = 'auto';
+    audio.load();
+    return audio;
+  });
+  characterEmoteSounds[character][emoteKey] = sounds;
+  return sounds;
+}
+
+function playCharacterEmoteSound(character, emoteKey, player) {
+  const sounds = ensureCharacterEmoteSounds(character, emoteKey);
+  if (!sounds.length) return;
+  const sound = sounds[Math.floor(Math.random() * sounds.length)];
+  const updateDuration = () => {
+    if (!Number.isFinite(sound.duration) || sound.duration <= 0) return;
+    player.emoteDuration = sound.duration * 1000;
+    if (player.id === localPlayer.id) sendState();
+  };
+  sound.addEventListener('loadedmetadata', updateDuration, { once: true });
+  updateDuration();
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
 }
 
 function createMirroredSprite(image) {
@@ -420,6 +468,7 @@ function getCharacterFrames(player) {
       if (player.id === localPlayer.id) {
         emoteActive = false;
         localPlayer.emoteActive = false;
+        localPlayer.emoteDuration = 0;
         updateEmoteToggle();
         sendState();
       }
@@ -453,8 +502,8 @@ function getEmoteFrameIndex(emote, frames = [], player = null) {
   const frameDuration = emote.frameDuration || 180;
   if (emote.mode === 'action') {
     const elapsed = animationTime - (player?.emoteStartedAt ?? animationTime);
-    if (elapsed >= frameDuration * frames.length) return null;
-    return Math.max(0, Math.floor(elapsed / frameDuration));
+    if (elapsed >= (player?.emoteDuration || emote.duration || frameDuration * frames.length)) return null;
+    return Math.floor(elapsed / frameDuration) % frames.length;
   }
   return Math.floor(animationTime / frameDuration) % frames.length;
 }
@@ -541,11 +590,14 @@ const skins = [
   { id: 'lefty', label: 'Lefty', rarity: 'Légendaire', price: 700 },
   { id: 'toy-bonnie', label: 'Toy Bonnie', rarity: 'Rare', price: 320 },
   { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
+  { id: 'freddy', label: 'Freddy', rarity: 'Rare', price: 340 },
+  { id: 'bonnie', label: 'Bonnie', rarity: 'Rare', price: 340 },
+  { id: 'chica', label: 'Chica', rarity: 'Rare', price: 340 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];
 const skinLicenses = [
   { id: 'undertale', label: 'Undertale', description: 'Ruines et monstres souterrains', texture: 'Tilesets/Interiors/ruins.png', character: 'sans', skinIds: ['frisk', 'temmie', 'papyrus', 'sans', 'undyne'] },
-  { id: 'fnaf', label: 'Five Nights at Freddy’s', description: 'Animatroniques dans la nuit', texture: 'Tilesets/Interiors/checkered_floor.png', character: 'foxy', skinIds: ['foxy', 'puppet', 'nightmare-fredbear', 'springtrap', 'nightmarionne', 'funtime-freddy', 'balloon-boy', 'el-chip', 'lefty', 'toy-bonnie', 'withered-bonnie'] },
+  { id: 'fnaf', label: 'Five Nights at Freddy’s', description: 'Animatroniques dans la nuit', texture: 'Tilesets/Interiors/checkered_floor.png', character: 'foxy', skinIds: ['foxy', 'puppet', 'nightmare-fredbear', 'springtrap', 'nightmarionne', 'funtime-freddy', 'balloon-boy', 'el-chip', 'lefty', 'toy-bonnie', 'withered-bonnie', 'freddy', 'bonnie', 'chica'] },
   { id: 'deltarune', label: 'Deltarune', description: 'Un monde entre lumière et ténèbres', texture: 'Tilesets/Interiors/floor.png', character: 'noelle', skinIds: ['noelle', 'noelle-alt', 'spamton', 'asgore', 'jevil', 'rouxls-kaard'] },
   { id: 'other', label: 'Autres', description: 'Personnages venus d’ailleurs', texture: 'Tilesets/Interiors/missing.png', character: 'pikachu', skinIds: ['red-crewmate', 'villager', 'pikachu', 'steve'] },
 ];
@@ -1106,7 +1158,7 @@ function getOrCreatePlayerId() {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
   }
 }
-const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0, drivingCar: false };
+const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, emoteDuration: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0, drivingCar: false };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -1961,6 +2013,7 @@ function sendState() {
       character: localPlayer.character,
       emoteActive: localPlayer.emoteActive,
       emoteActionId: localPlayer.emoteActionId,
+      emoteDuration: localPlayer.emoteDuration || 0,
       speech: localPlayer.speech || '',
       speechUntil: Number.isFinite(localPlayer.speechUntil) ? localPlayer.speechUntil : 0,
       insideHouse: localPlayer.insideHouse || null,
@@ -2063,7 +2116,9 @@ function renderSkinLibrary() {
       banner.className = 'license-banner';
       banner.dataset.license = license.id;
       banner.style.setProperty('--license-character', `url("${skinPaths[license.character].folder}/${skinPaths[license.character].prefix}_down2.png")`);
-      banner.innerHTML = `<span><h3>${license.label}</h3><p>${license.description}</p></span>`;
+      const ownedCount = license.skinIds.filter((skinId) => session.ownedSkins.includes(skinId)).length;
+      const complete = ownedCount === license.skinIds.length;
+      banner.innerHTML = `<span class="license-content"><h3>${license.label}</h3><p>${license.description}</p><strong class="license-progress">${ownedCount} / ${license.skinIds.length} personnages${complete ? ' <span class="license-trophy" aria-label="Licence complète" title="Licence complète">🏆</span>' : ''}</strong></span>`;
       banner.addEventListener('click', () => {
         activeSkinLicense = license.id;
         renderSkinLibrary();
@@ -2525,8 +2580,11 @@ emoteToggle.addEventListener('click', () => {
     emoteActive = true;
     localPlayer.emoteActionId += 1;
     localPlayer.emoteStartedAt = animationTime;
+    localPlayer.emoteDuration = selectedEmote.emote.duration || 0;
+    playCharacterEmoteSound(localPlayer.character, selectedEmote.key, localPlayer);
   } else {
     emoteActive = !emoteActive;
+    localPlayer.emoteDuration = 0;
   }
   localPlayer.emoteActive = emoteActive;
   updateEmoteToggle();

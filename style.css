@@ -117,6 +117,8 @@ button, input { font: inherit; }
 .license-banner:hover, .license-banner:focus-visible { border-color: var(--mint); outline: none; box-shadow: inset 3px 0 0 var(--mint); }
 .license-banner h3 { margin: 0 0 5px; font-size: 18px; font-weight: 600; }
 .license-banner p { margin: 0; color: var(--muted); font: 10px 'DM Mono', monospace; }
+.license-progress { display: block; margin-top: 9px; color: var(--mint); font: 10px 'DM Mono', monospace; font-weight: 700; }
+.license-trophy { display: inline-block; margin-left: 3px; font-size: 13px; line-height: 1; vertical-align: -1px; }
 .license-banner[data-license="undertale"] { background-image: url('Tilesets/Interiors/ruins.png'); }
 .license-banner[data-license="fnaf"] { background-image: url('Tilesets/Interiors/checkered_floor.png'); }
 .license-banner[data-license="deltarune"] { background-image: url('Tilesets/Interiors/floor.png'); }

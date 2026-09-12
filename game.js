@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.105005515';
+const APP_VERSION = '2026.09.12.112755884';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -235,6 +235,7 @@ const directions = ['down', 'left', 'right', 'up'];
 const skinPaths = {
   noelle: { folder: 'Characters/Noelle', prefix: 'noelle' },
   'noelle-alt': { folder: 'Characters/Noelle/Alt', prefix: 'noelle_alt' },
+  'red-crewmate': { folder: 'Characters/RedCrewmate', prefix: 'red_crewmate' },
   frisk: { folder: 'Characters/Frisk', prefix: 'frisk' },
   spamton: { folder: 'Characters/Spamton', prefix: 'spamton' },
   temmie: { folder: 'Characters/Temmie', prefix: 'temmie' },
@@ -274,6 +275,14 @@ function createSprite(character, direction, frame) {
   return image;
 }
 
+function createMirroredSprite(image) {
+  const mirroredImage = new Image();
+  mirroredImage.src = image.src;
+  mirroredImage.flipX = true;
+  mirroredImage.addEventListener('load', () => requestAnimationFrame(draw), { once: true });
+  return mirroredImage;
+}
+
 function getSpriteFrameCount(character, direction) {
   const frames = characterSprites?.[character]?.[direction];
   return Array.isArray(frames) ? frames.length : 0;
@@ -290,12 +299,19 @@ function probeSpriteFrame(character, direction, frame) {
 }
 
 async function loadCharacterSpriteDirection(character, direction) {
-  const frames = [];
-  const maxFrames = 12;
-  for (let frame = 1; frame <= maxFrames; frame += 1) {
-    const sprite = await probeSpriteFrame(character, direction, frame);
-    if (!sprite) break;
-    frames.push(sprite);
+  const loadFrames = async (sourceDirection) => {
+    const frames = [];
+    for (let frame = 1; frame <= 12; frame += 1) {
+      const sprite = await probeSpriteFrame(character, sourceDirection, frame);
+      if (!sprite) break;
+      frames.push(sprite);
+    }
+    return frames;
+  };
+  let frames = await loadFrames(direction);
+  if (frames.length === 0 && (direction === 'left' || direction === 'right')) {
+    frames = await loadFrames('side');
+    if (direction === 'left') frames = frames.map((image) => createMirroredSprite(image));
   }
   characterSprites[character][direction] = frames;
   return frames;
@@ -318,6 +334,18 @@ function getAnimationFrameIndex(player, frames = []) {
   const frameDuration = 240 / speedRatio;
   const animationOffset = Number.isFinite(player.animationOffset) ? player.animationOffset : 0;
   return Math.floor((animationTime + animationOffset) / frameDuration) % frameCount;
+}
+
+function drawCharacterSprite(image, x, y, width, height) {
+  if (!image.flipX) {
+    context.drawImage(image, x, y, width, height);
+    return;
+  }
+  context.save();
+  context.translate(x + width, y);
+  context.scale(-1, 1);
+  context.drawImage(image, 0, 0, width, height);
+  context.restore();
 }
 
 function updateSkinLibraryAnimations() {
@@ -367,6 +395,7 @@ function getRarityForHits(hits) {
 const skins = [
   { id: 'noelle', label: 'Noelle', rarity: 'Commun', price: 0 },
   { id: 'noelle-alt', label: 'Noelle Alt', rarity: 'Non commun', price: 60 },
+  { id: 'red-crewmate', label: 'Red Crewmate', rarity: 'Rare', price: 200 },
   { id: 'frisk', label: 'Frisk', rarity: 'Rare', price: 220 },
   { id: 'villager', label: 'Villageois', rarity: 'Non commun', price: 90 },
   { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
@@ -1092,7 +1121,7 @@ function drawInteriorPlayer(player, isLocal = false) {
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET, width, height);
+  if (image.complete && image.naturalWidth > 0) drawCharacterSprite(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -1293,7 +1322,7 @@ function drawPlayer(player, isLocal = false) {
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET * cameraZoom, width, height);
+  if (image.complete && image.naturalWidth > 0) drawCharacterSprite(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET * cameraZoom, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }

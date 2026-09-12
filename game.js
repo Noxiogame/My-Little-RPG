@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.203741686';
+const APP_VERSION = '2026.09.12.204236204';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -359,9 +359,12 @@ function ensureCharacterEmoteSounds(character, emoteKey) {
 function getEmoteSoundVolume(source) {
   const sourceX = source.targetX ?? source.x ?? 0;
   const sourceY = source.targetY ?? source.y ?? 0;
-  const distance = Math.hypot(wrapDelta(sourceX - localPlayer.x), wrapDelta(sourceY - localPlayer.y));
-  const maxDistance = .35;
-  return Math.max(0, Math.min(1, 1 - distance / maxDistance));
+  const distanceX = wrapDelta(sourceX - localPlayer.x) * WORLD_SIZE.width / TILE_SIZE;
+  const distanceY = wrapDelta(sourceY - localPlayer.y) * WORLD_SIZE.height / TILE_SIZE;
+  const distanceInTiles = Math.hypot(distanceX, distanceY);
+  const maxDistanceInTiles = 6;
+  const proximity = Math.max(0, Math.min(1, 1 - distanceInTiles / maxDistanceInTiles));
+  return proximity * proximity;
 }
 
 function playCharacterEmoteSound(character, emoteKey, player) {

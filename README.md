@@ -10,6 +10,12 @@ Ouvrir `index.html` dans un navigateur ou publier le dossier avec GitHub Pages. 
 
 Le joystick fonctionne au doigt sur mobile. Les touches `WASD` et les fleches sont aussi disponibles sur ordinateur.
 
+## Emotes de personnages
+
+Les emotes sont declarees dans `game.js`, dans `characterEmotes`. Une emote peut remplacer l'animation d'une direction precise : `mode: 'loop'` boucle ses frames, tandis que `mode: 'action'` joue une seule sequence apres un clic. `frameCount: 1` convient a une image fixe, et `frameDuration` definit la duree de chaque frame en millisecondes. Pour un fichier sans numero final, utiliser `frameSuffix: false`. Les directions sans emote gardent le comportement normal.
+
+Jevil utilise actuellement `jevil_down_dance1.png` a `jevil_down_dance8.png` vers le bas, `jevil_up_dance1.png` a `jevil_up_dance8.png` vers le haut et `jevil_side_taunt1.png` a `jevil_side_taunt7.png` comme action laterale. Une emote `default` comme `withered_bonnie_sit1.png` s'applique a toutes les directions.
+
 ## Serveur de signalisation
 
 Le projet est hébergé sur GitHub Pages et n’a pas de backend applicatif. La partie multijoueur passe donc par le broker PeerJS standard, exactement comme dans la version historique du projet, sans serveur supplémentaire à maintenir sur GitHub.

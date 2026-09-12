@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.161716240';
+const APP_VERSION = '2026.09.12.171840948';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -73,6 +73,8 @@ const loginAccount = document.querySelector('#login-account');
 const openMenuSkins = document.querySelector('#open-menu-skins');
 const skinToggle = document.querySelector('#skin-toggle');
 const skinToggleImage = document.querySelector('#skin-toggle-image');
+const emoteToggle = document.querySelector('#emote-toggle');
+let emoteActive = false;
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
 const MIN_CAMERA_ZOOM = .75;
@@ -82,7 +84,6 @@ const PLAYER_SPEED = 100;
 const CAR_SPEED_MULTIPLIER = 2.2;
 const CAR_ENTER_RADIUS = 46;
 const CAR_CLICK_RADIUS = 26;
-const CHARACTER_SPRITE_FOOT_OFFSET = 6;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
 const SIDEWALK_TEXTURE_NAMES = ['0001', '0010', '0011', '0100', '0101', '0110', '1000', '1001', '1010', '1100'];
@@ -282,6 +283,18 @@ const spriteFrameCountOverrides = {
   'balloon-boy': { left: 0, right: 0, side: 4 },
   villager: { left: 0, right: 0, side: 4 },
 };
+const characterEmotes = {
+  jevil: {
+    down: { prefix: 'jevil_down_dance', frameCount: 8, frameDuration: 140, mode: 'loop' },
+    up: { prefix: 'jevil_up_dance', frameCount: 8, frameDuration: 140, mode: 'loop' },
+    side: { prefix: 'jevil_side_taunt', frameCount: 7, frameDuration: 140, mode: 'action' },
+  },
+  'withered-bonnie': {
+    default: { prefix: 'withered_bonnie_sit', frameCount: 1, frameDuration: 180, mode: 'loop' },
+  },
+};
+const characterEmoteSprites = {};
+const emoteLoadPromises = new Map();
 
 function getSpriteFrameLimit(character, direction) {
   return spriteFrameCountOverrides[character]?.[direction] ?? (direction === 'side' ? 0 : 4);
@@ -293,6 +306,15 @@ function createSprite(character, direction, frame) {
   const folder = skin.folder ? `${skin.folder}/` : '';
   const prefix = skin.prefix;
   image.src = `${folder}${prefix}_${direction}${frame}.png`;
+  return image;
+}
+
+function createEmoteSprite(character, emote, frame) {
+  const image = new Image();
+  const skin = skinPaths[character] || skinPaths.noelle;
+  const folder = skin.folder ? `${skin.folder}/` : '';
+  const suffix = emote.frameSuffix === false ? '' : frame;
+  image.src = `${folder}${emote.prefix}${suffix}.png`;
   return image;
 }
 
@@ -339,6 +361,69 @@ async function loadCharacterSpriteDirection(character, direction) {
   return frames;
 }
 
+async function loadCharacterEmote(character, emoteKey) {
+  const emote = characterEmotes[character]?.[emoteKey];
+  if (!emote) return [];
+  const frames = [];
+  for (let frame = 1; frame <= emote.frameCount; frame += 1) {
+    const sprite = await new Promise((resolve) => {
+      const image = createEmoteSprite(character, emote, frame);
+      const finalize = () => resolve(image.complete && image.naturalWidth > 0 ? image : null);
+      image.addEventListener('load', finalize, { once: true });
+      image.addEventListener('error', () => resolve(null), { once: true });
+      if (image.complete) finalize();
+    });
+    if (!sprite) break;
+    frames.push(sprite);
+  }
+  characterEmoteSprites[character] ||= {};
+  characterEmoteSprites[character][emoteKey] = frames;
+  return frames;
+}
+
+function ensureCharacterEmote(character, emoteKey) {
+  if (!characterEmotes[character]?.[emoteKey]) return Promise.resolve([]);
+  const key = `${character}:${emoteKey}`;
+  if (emoteLoadPromises.has(key)) return emoteLoadPromises.get(key);
+  const loadPromise = loadCharacterEmote(character, emoteKey).finally(() => emoteLoadPromises.delete(key));
+  emoteLoadPromises.set(key, loadPromise);
+  return loadPromise;
+}
+
+function getCharacterEmote(character, direction) {
+  const emotes = characterEmotes[character] || {};
+  if (emotes[direction]) return { key: direction, emote: emotes[direction] };
+  if ((direction === 'left' || direction === 'right') && emotes.side) return { key: 'side', emote: emotes.side };
+  if (emotes.default) return { key: 'default', emote: emotes.default };
+  return null;
+}
+
+function getCharacterFrames(player) {
+  const direction = player.direction || 'down';
+  const selectedEmote = getCharacterEmote(player.character, direction);
+  const emote = selectedEmote?.emote;
+  let emoteFrames = selectedEmote && characterEmoteSprites[player.character]?.[selectedEmote.key];
+  if (selectedEmote?.key === 'side' && direction === 'left' && emoteFrames?.length) {
+    const mirrorKey = `${selectedEmote.key}:left`;
+    characterEmoteSprites[player.character][mirrorKey] ||= emoteFrames.map((image) => createMirroredSprite(image));
+    emoteFrames = characterEmoteSprites[player.character][mirrorKey];
+  }
+  if (player.emoteActive && !player.moving && emote) {
+    if (emoteFrames?.length) {
+      const frame = getEmoteFrameIndex(emote, emoteFrames, player);
+      if (frame !== null) return { frames: emoteFrames, emote };
+      if (player.id === localPlayer.id) {
+        emoteActive = false;
+        localPlayer.emoteActive = false;
+        updateEmoteToggle();
+        sendState();
+      }
+    } else ensureCharacterEmote(player.character, selectedEmote.key).then(() => requestAnimationFrame(draw));
+  }
+  const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
+  return { frames: selectedSprites?.[direction] || selectedSprites?.down || [], emote: null };
+}
+
 function ensureCharacterSprites(character) {
   if (!character || !characterSprites[character]) return Promise.resolve(characterSprites[character]);
   if (spriteLoadPromises.has(character)) return spriteLoadPromises.get(character);
@@ -356,6 +441,17 @@ function getAnimationFrameIndex(player, frames = []) {
   const frameDuration = 240 / speedRatio;
   const animationOffset = Number.isFinite(player.animationOffset) ? player.animationOffset : 0;
   return Math.floor((animationTime + animationOffset) / frameDuration) % frameCount;
+}
+
+function getEmoteFrameIndex(emote, frames = [], player = null) {
+  if (!emote || !Array.isArray(frames) || frames.length === 0) return 0;
+  const frameDuration = emote.frameDuration || 180;
+  if (emote.mode === 'action') {
+    const elapsed = animationTime - (player?.emoteStartedAt ?? animationTime);
+    if (elapsed >= frameDuration * frames.length) return null;
+    return Math.max(0, Math.floor(elapsed / frameDuration));
+  }
+  return Math.floor(animationTime / frameDuration) % frames.length;
 }
 
 function drawCharacterSprite(image, x, y, width, height) {
@@ -564,6 +660,8 @@ async function loadRemoteSession(user) {
     session.ownedSkins = Array.isArray(playerData.owned_skins) ? playerData.owned_skins.filter((id) => skins.some((skin) => skin.id === id)) : ['noelle'];
     if (!session.ownedSkins.includes('noelle')) session.ownedSkins.unshift('noelle');
     localPlayer.character = session.character;
+    emoteActive = false;
+    localPlayer.emoteActive = false;
     eggState.cooldownUntil = session.cooldownUntil;
   }
   localStorage.setItem(activeAccountStorageKey, session.accountName);
@@ -592,6 +690,30 @@ function updateSkinToggle(character = session.character) {
   skinToggleImage.src = `${skin.folder}/${skin.prefix}_down2.png`;
   skinToggleImage.alt = `Skin équipé : ${character}`;
   skinToggle.title = `Skin équipé : ${character}`;
+  updateEmoteToggle(character);
+}
+
+function updateEmoteToggle(character = localPlayer.character) {
+  const direction = localPlayer.direction || 'down';
+  const selectedEmote = getCharacterEmote(character, direction);
+  const canEmote = Boolean(selectedEmote);
+  if (localPlayer.moving && emoteActive) {
+    emoteActive = false;
+    localPlayer.emoteActive = false;
+  }
+  const actionPlaying = selectedEmote?.emote.mode === 'action' && emoteActive;
+  const available = canEmote && !localPlayer.moving && !actionPlaying;
+  emoteToggle.disabled = !available;
+  emoteToggle.classList.toggle('is-active', available && emoteActive);
+  emoteToggle.setAttribute('aria-pressed', canEmote && emoteActive ? 'true' : 'false');
+  emoteToggle.title = !canEmote
+    ? 'Aucune emote disponible'
+    : localPlayer.moving
+      ? 'Emote indisponible pendant le déplacement'
+      : actionPlaying
+        ? 'Emote en cours'
+      : emoteActive ? 'Désactiver l’emote' : 'Activer l’emote';
+  emoteToggle.setAttribute('aria-label', emoteToggle.title);
 }
 
 function enterGame() {
@@ -646,6 +768,8 @@ function createLocalAccount() {
   session.character = 'noelle';
   session.ownedSkins = ['noelle'];
   localPlayer.character = 'noelle';
+  emoteActive = false;
+  localPlayer.emoteActive = false;
   updateAccountUi();
   mainMenu.hidden = true;
 }
@@ -970,7 +1094,7 @@ function getOrCreatePlayerId() {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
   }
 }
-const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0, drivingCar: false };
+const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0, drivingCar: false };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -1239,10 +1363,9 @@ function roomToScreen(px, py) {
 }
 
 function drawInteriorPlayer(player, isLocal = false) {
-  const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
-  const imageFrames = selectedSprites?.[player.direction] || selectedSprites?.down || [];
+  const { frames: imageFrames, emote } = getCharacterFrames(player);
   if (!Array.isArray(imageFrames) || imageFrames.length === 0) { ensureCharacterSprites(player.character); return; }
-  const frame = getAnimationFrameIndex(player, imageFrames);
+  const frame = emote ? getEmoteFrameIndex(emote, imageFrames, player) : getAnimationFrameIndex(player, imageFrames);
   const image = imageFrames[frame] || imageFrames[0];
   if (!image) return;
   const width = (image.naturalWidth || 23) * ROOM_ZOOM;
@@ -1253,8 +1376,8 @@ function drawInteriorPlayer(player, isLocal = false) {
   context.save();
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
-  context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) drawCharacterSprite(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET, width, height);
+  context.beginPath(); context.ellipse(x, y, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
+  if (image.complete && image.naturalWidth > 0) drawCharacterSprite(image, x - width / 2, y - height, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -1552,13 +1675,12 @@ function worldToScreen(x, y) {
 }
 
 function drawPlayer(player, isLocal = false) {
-  const selectedSprites = characterSprites[player.character] || characterSprites.noelle;
-  const imageFrames = selectedSprites?.[player.direction] || selectedSprites?.down || [];
+  const { frames: imageFrames, emote } = getCharacterFrames(player);
   if (!Array.isArray(imageFrames) || imageFrames.length === 0) {
     ensureCharacterSprites(player.character);
     return;
   }
-  const frame = getAnimationFrameIndex(player, imageFrames);
+  const frame = emote ? getEmoteFrameIndex(emote, imageFrames, player) : getAnimationFrameIndex(player, imageFrames);
   const image = imageFrames[frame] || imageFrames[0];
   if (!image) return;
   const pixelWidth = image.naturalWidth || 23;
@@ -1572,8 +1694,8 @@ function drawPlayer(player, isLocal = false) {
   context.save();
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
-  context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) drawCharacterSprite(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET * cameraZoom, width, height);
+  context.beginPath(); context.ellipse(x, y, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
+  if (image.complete && image.naturalWidth > 0) drawCharacterSprite(image, x - width / 2, y - height, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -1811,7 +1933,7 @@ function update(delta) {
 
 function frame(now) {
   const delta = Math.min(now - lastTime, 50);
-  lastTime = now; animationTime += delta; update(delta); camera.x = localPlayer.x; camera.y = localPlayer.y; updateSkinLibraryAnimations(); draw();
+  lastTime = now; animationTime += delta; update(delta); updateEmoteToggle(); camera.x = localPlayer.x; camera.y = localPlayer.y; updateSkinLibraryAnimations(); draw();
   requestAnimationFrame(frame);
 }
 
@@ -1825,6 +1947,8 @@ function sendState() {
       direction: localPlayer.direction,
       moving: localPlayer.moving,
       character: localPlayer.character,
+      emoteActive: localPlayer.emoteActive,
+      emoteActionId: localPlayer.emoteActionId,
       speech: localPlayer.speech || '',
       speechUntil: Number.isFinite(localPlayer.speechUntil) ? localPlayer.speechUntil : 0,
       insideHouse: localPlayer.insideHouse || null,
@@ -1942,6 +2066,8 @@ function chooseSkin(skin) {
     session.ownedSkins.push(skin.id);
   }
   localPlayer.character = skin.id;
+  emoteActive = false;
+  localPlayer.emoteActive = false;
   localPlayer.speech = '';
   localPlayer.speechUntil = 0;
   saveSession();
@@ -2022,6 +2148,7 @@ function receive(connection, payload) {
       targetRoomX: payload.player.roomX ?? 0,
       targetRoomY: payload.player.roomY ?? 0,
       targetInsideHouse: payload.player.insideHouse || null,
+      emoteStartedAt: previous && previous.emoteActionId === payload.player.emoteActionId ? previous.emoteStartedAt : animationTime,
       animationOffset: previous?.animationOffset ?? getPlayerAnimationOffset(payload.player.id || connection.peer),
       peerId: connection.peer,
     };
@@ -2089,7 +2216,7 @@ function receive(connection, payload) {
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
       const existing = remotePlayers.get(player.id);
-      remotePlayers.set(player.id, { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
+      remotePlayers.set(player.id, { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, emoteStartedAt: existing && existing.emoteActionId === player.emoteActionId ? existing.emoteStartedAt : animationTime, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
     }
     });
   }
@@ -2343,6 +2470,21 @@ createAccount.addEventListener('click', () => authClient ? createRemoteAccount()
 saveNickname.addEventListener('click', saveAccountNickname);
 newAccountName.addEventListener('keydown', (event) => { if (event.key === 'Enter') (authClient ? createRemoteAccount() : createLocalAccount()); });
 eggToggle.addEventListener('click', openEgg);
+emoteToggle.addEventListener('click', () => {
+  if (emoteToggle.disabled) return;
+  const selectedEmote = getCharacterEmote(localPlayer.character, localPlayer.direction);
+  if (!selectedEmote) return;
+  if (selectedEmote.emote.mode === 'action') {
+    emoteActive = true;
+    localPlayer.emoteActionId += 1;
+    localPlayer.emoteStartedAt = animationTime;
+  } else {
+    emoteActive = !emoteActive;
+  }
+  localPlayer.emoteActive = emoteActive;
+  updateEmoteToggle();
+  sendState();
+});
 eggClose.addEventListener('click', closeEgg);
 eggModal.querySelector('.egg-modal-backdrop').addEventListener('click', closeEgg);
 skinClose.addEventListener('click', closeSkinLibrary);

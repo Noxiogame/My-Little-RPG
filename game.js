@@ -1,7 +1,7 @@
 ﻿const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.085013354';
+const APP_VERSION = '2026.09.12.085505111';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -890,14 +890,13 @@ const keys = new Set();
 const joystickInput = { x: 0, y: 0, active: false, pointerId: null };
 const zoomPointers = new Map();
 const PEERJS_QUERY = new URLSearchParams(window.location.search);
-const PEERJS_HOST = PEERJS_QUERY.get('peerjsHost');
-const PEERJS_CONFIG = PEERJS_HOST ? {
+const PEERJS_CONFIG = {
   debug: 0,
-  host: PEERJS_HOST,
+  host: PEERJS_QUERY.get('peerjsHost') || '0.peerjs.com',
   secure: PEERJS_QUERY.get('peerjsSecure') !== 'false',
   port: Number.parseInt(PEERJS_QUERY.get('peerjsPort') || '443', 10) || 443,
-  path: PEERJS_QUERY.get('peerjsPath') || '/peerjs',
-} : null;
+  path: PEERJS_QUERY.get('peerjsPath') || '/',
+};
 let pinchDistance = null;
 let peer = null;
 let hostConnection = null;
@@ -1744,10 +1743,6 @@ function sendLeave() {
 
 function createPeer() {
   if (!window.Peer) return;
-  if (!PEERJS_CONFIG) {
-    addChatMessage('Serveur PeerJS non configuré. Ajoute ?peerjsHost=votre-domaine.com pour activer la prairie.', 'Prairie');
-    return;
-  }
   const hostId = `noelle-meadow-${ROOM_ID}`;
   if (peer) {
     try { peer.destroy(); } catch {}
@@ -1775,10 +1770,6 @@ function createPeer() {
 }
 
 function connectToHost(hostId) {
-  if (!PEERJS_CONFIG) {
-    addChatMessage('Serveur PeerJS non configuré. Ajoute ?peerjsHost=votre-domaine.com pour activer la prairie.', 'Prairie');
-    return;
-  }
   if (peer) {
     try { peer.destroy(); } catch {}
     peer = null;
@@ -1954,6 +1945,7 @@ mainMenu.hidden = true;
 checkForGameVersion();
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });
+
 
 
 

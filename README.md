@@ -10,19 +10,11 @@ Ouvrir `index.html` dans un navigateur ou publier le dossier avec GitHub Pages. 
 
 Le joystick fonctionne au doigt sur mobile. Les touches `WASD` et les fleches sont aussi disponibles sur ordinateur.
 
-## Serveur PeerJS pour GitHub Pages
+## Serveur de signalisation
 
-Le jeu est un front statique et ne peut pas faire de signalisation PeerJS par lui-meme. Il faut donc un serveur PeerJS accessible publiquement et le pointer depuis l’URL du jeu :
+Le projet est hébergé sur GitHub Pages et n’a pas de backend applicatif. La partie multijoueur passe donc par le broker PeerJS standard, exactement comme dans la version historique du projet, sans serveur supplémentaire à maintenir sur GitHub.
 
-`?peerjsHost=votre-domaine.com&peerjsSecure=true&peerjsPort=443&peerjsPath=/peerjs`
-
-Exemple :
-
-`https://votre-user.github.io/Noelles-Meadow/?peerjsHost=peerjs.example.com&peerjsSecure=true&peerjsPort=443&peerjsPath=/peerjs`
-
-Sans ce parametre, la prairie ne peut pas organiser les connexions entre joueurs. 
-
-Le serveur PeerJS doit exposer le point d’API standard `peerjs` sur le chemin choisi, et le host doit rester stable pour que les parties se rejoignent correctement sur GitHub Pages.
+Le jeu utilise par défaut la configuration historique `0.peerjs.com` et n’exige pas de paramètre personnalisé tant que le broker PeerJS standard reste accessible. Les paramètres d’URL restent optionnels pour les cas où l’on veut override le host, mais le mode d’origine du projet est bien le serveur public PeerJS + GitHub Pages.
 
 ## Tileset de la carte
 

@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.121244645';
+const APP_VERSION = '2026.09.12.124124056';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -100,11 +100,12 @@ function reloadGameSafely() {
   if (versionMismatchTriggered) return;
   versionMismatchTriggered = true;
   console.warn('Reloading the game safely.');
-  if (peer) {
-    try { peer.destroy(); } catch {}
-    peer = null;
-  }
-  closeAllConnections();
+  // On previous versions this skipped straight to peer.destroy(), which tears
+  // down the connection without ever telling the host/other players "leave" -
+  // WebRTC only notices much later (if at all, e.g. on a backgrounded mobile
+  // tab), so everyone else kept a frozen ghost copy of this player around
+  // until it timed out. sendLeave() sends that message first.
+  sendLeave();
   localStorage.setItem('app-last-version', APP_VERSION);
   window.location.replace(buildReloadUrl(APP_VERSION));
 }
@@ -115,11 +116,8 @@ function forceVersionReload(version = APP_VERSION, reason = 'Une mise à jour du
   versionMismatchTriggered = true;
   sessionStorage.setItem(VERSION_RELOAD_KEY, version);
   console.warn(`${reason} Reloading to version ${version}.`);
-  if (peer) {
-    try { peer.destroy(); } catch {}
-    peer = null;
-  }
-  closeAllConnections();
+  // Same reasoning as reloadGameSafely(): say goodbye properly before leaving.
+  sendLeave();
   localStorage.setItem('app-last-version', version);
   window.location.replace(buildReloadUrl(version));
 }
@@ -1755,6 +1753,15 @@ function closeConnection(connection, silent = false) {
 function receive(connection, payload) {
   if (!payload || !payload.type) return;
 
+  // Garde-fou anti-clone : si un message parle de nous-meme (notre propre
+  // playerId), c'est un echo qui a boucle dans le mesh P2P (ex: pendant une
+  // migration de host ou une reconnexion rapide) - jamais un vrai "autre
+  // joueur". Sans ca, on pouvait finir avec une entree fantome de nous-memes
+  // dans remotePlayers, dessinee a cote de notre propre personnage (le
+  // "clone" fige signale sur mobile).
+  const echoedSelfId = payload.playerId === localPlayer.id || payload.player?.id === localPlayer.id;
+  if (echoedSelfId && payload.type !== 'hello') return;
+
   if (payload.type === 'version-mismatch') {
     addChatMessage('Un autre joueur a une version différente. Sa session est temporairement ignorée.', 'Prairie');
     closeConnection(connection, true);
@@ -1797,6 +1804,19 @@ function receive(connection, payload) {
       return;
     }
     if (isHost) {
+      // Dedupe par identite de joueur (pas seulement par connexion PeerJS) :
+      // un refresh mobile ouvre une toute nouvelle connexion avec un nouveau
+      // peer id, mais le meme player.id (sessionStorage). Si l'ancienne
+      // connexion n'a pas encore ete detectee comme fermee (frequent quand
+      // l'onglet etait en arriere-plan), on se retrouvait avec deux
+      // connexions actives pour la meme personne : l'ancienne continuait de
+      // "relayer" une position figee, ce qui donnait l'impression d'un clone
+      // fige a cote du personnage qui bouge vraiment.
+      connections.forEach((existingConnection, peerId) => {
+        if (peerId === connection.peer) return;
+        const isSamePlayer = [...remotePlayers.values()].some((player) => player.id === payload.player.id && player.peerId === peerId);
+        if (isSamePlayer) closeConnection(existingConnection, true);
+      });
       connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
       broadcast({ type: 'state', player: localPlayer }, connection.peer);
       announcePresence('join', payload.player.id, connection.peer);

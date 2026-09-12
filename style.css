@@ -98,12 +98,29 @@ button, input { font: inherit; }
 .skin-modal { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; }
 .skin-modal[hidden] { display: none; }
 .skin-modal-backdrop { position: absolute; inset: 0; background: rgba(10,18,17,.76); backdrop-filter: blur(3px); }
-.skin-card { position: relative; width: min(440px, calc(100vw - 36px)); padding: 25px 24px 20px; border: 1px solid rgba(247,241,222,.3); background: #182a27; box-shadow: 0 18px 55px rgba(0,0,0,.4); }
+.skin-card { position: relative; width: min(560px, calc(100vw - 28px)); max-height: min(720px, calc(100dvh - 28px)); padding: 30px 24px 20px; border: 1px solid rgba(247,241,222,.3); background: #182a27; box-shadow: 0 18px 55px rgba(0,0,0,.4); overflow: hidden; }
 .skin-card h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.skin-back { position: absolute; top: 9px; left: 12px; z-index: 2; width: 30px; height: 28px; border: 1px solid var(--line); background: rgba(247,241,222,.05); color: var(--ink); cursor: pointer; font-size: 21px; line-height: 1; }
+.skin-back:hover, .skin-back:focus-visible { border-color: var(--mint); outline: none; }
 .skin-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .skin-wallet { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.7); color: var(--ink); font: 11px 'DM Mono', monospace; }
 .skin-intro { margin: 7px 0 15px; color: var(--muted); font-size: 12px; }
-.skin-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; max-height: min(390px, 52vh); overflow-y: auto; padding: 2px; }
+.skin-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; max-height: min(390px, 52vh); overflow-y: auto; padding: 2px; scrollbar-color: rgba(185,231,177,.72) rgba(16,27,26,.72); scrollbar-width: thin; }
+.license-list { display: grid; gap: 10px; max-height: min(560px, 65vh); overflow-x: hidden; overflow-y: auto; padding: 2px; scrollbar-color: rgba(185,231,177,.72) rgba(16,27,26,.72); scrollbar-width: thin; }
+.skin-list::-webkit-scrollbar, .license-list::-webkit-scrollbar { width: 9px; }
+.skin-list::-webkit-scrollbar-track, .license-list::-webkit-scrollbar-track { border: 1px solid rgba(247,241,222,.1); background: rgba(16,27,26,.72); }
+.skin-list::-webkit-scrollbar-thumb, .license-list::-webkit-scrollbar-thumb { border: 2px solid rgba(16,27,26,.72); background: rgba(185,231,177,.72); }
+.skin-list::-webkit-scrollbar-thumb:hover, .license-list::-webkit-scrollbar-thumb:hover { background: var(--mint); }
+.license-banner { position: relative; display: flex; align-items: center; min-height: 104px; padding: 16px 148px 16px 20px; border: 1px solid rgba(247,241,222,.25); background-color: #243b36; background-repeat: repeat; color: var(--ink); cursor: pointer; overflow: hidden; text-align: left; isolation: isolate; }
+.license-banner::before { content: ''; position: absolute; z-index: -1; inset: 0 38% 0 0; background: linear-gradient(90deg, #101b1a 0%, rgba(16,27,26,.94) 52%, transparent 100%); }
+.license-banner::after { content: ''; position: absolute; z-index: -1; top: 50%; right: 14px; width: 124px; height: 124px; transform: translateY(-50%); background: var(--license-character) center bottom / contain no-repeat; image-rendering: pixelated; filter: drop-shadow(0 8px 8px rgba(0,0,0,.35)); }
+.license-banner:hover, .license-banner:focus-visible { border-color: var(--mint); outline: none; box-shadow: inset 3px 0 0 var(--mint); }
+.license-banner h3 { margin: 0 0 5px; font-size: 18px; font-weight: 600; }
+.license-banner p { margin: 0; color: var(--muted); font: 10px 'DM Mono', monospace; }
+.license-banner[data-license="undertale"] { background-image: url('Tilesets/Interiors/ruins.png'); }
+.license-banner[data-license="fnaf"] { background-image: url('Tilesets/Interiors/checkered_floor.png'); }
+.license-banner[data-license="deltarune"] { background-image: url('Tilesets/Interiors/floor.png'); }
+.license-banner[data-license="other"] { background-image: url('Tilesets/Interiors/missing.png'); }
 .skin-item { display: grid; grid-template-rows: auto 1fr auto; align-items: center; min-height: 154px; padding: 10px 8px 8px; border: 1px solid var(--line); background: rgba(255,255,255,.035); text-align: center; }
 .skin-item.is-equipped { border-color: var(--mint); background: rgba(185,231,177,.08); }
 .skin-item.is-affordable:not(.is-equipped) { border-color: var(--mint); }
@@ -119,6 +136,9 @@ button, input { font: inherit; }
 
 @media (max-width: 420px) {
   .skin-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .license-banner { min-height: 92px; padding-right: 116px; }
+  .license-banner::after { right: 4px; width: 100px; height: 100px; }
+  .license-banner h3 { font-size: 15px; }
 }
 
 .hud { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 24px 30px; pointer-events: none; }

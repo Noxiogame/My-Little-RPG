@@ -1,6 +1,6 @@
 # Noelle's Meadow
 
-Le code du jeu est a la racine du projet. Le dossier `Characters/` contient tous les assets de personnages, avec un sous-dossier par skin (`Noelle/`, `Noelle/Alt/`, `Spamton/`, `Temmie/`, `Asgore/`, `Rouxls/`, `Villageois/`, etc.) ; `Noelle/` contient aussi les textures de talkbox.
+Le code du jeu est a la racine du projet. Les assets sont classes par categorie : `Characters/` contient un sous-dossier par skin, `Tilesets/` contient les terrains et leurs sous-dossiers (`Grass/`, `Road/`, `Sidewalk/`, `Interiors/`, `Rewards/`), `Houses/` contient les maisons et `Vehicles/` les vehicules. `Noelle/` contient aussi les textures de talkbox.
 
 Petit jeu multijoueur statique pour GitHub Pages. Les quatre images d'une direction sont utilisees comme animation : la frame `1` est l'idle, puis les frames `1` a `4` bouclent pendant le mouvement.
 
@@ -14,7 +14,7 @@ Le joystick fonctionne au doigt sur mobile. Les touches `WASD` et les fleches so
 
 Les emotes sont declarees dans `game.js`, dans `characterEmotes`. Une emote peut remplacer l'animation d'une direction precise : `mode: 'loop'` boucle ses frames, tandis que `mode: 'action'` joue une seule sequence apres un clic. `frameCount: 1` convient a une image fixe, et `frameDuration` definit la duree de chaque frame en millisecondes. Pour un fichier sans numero final, utiliser `frameSuffix: false`. Les directions sans emote gardent le comportement normal.
 
-Jevil utilise actuellement `jevil_down_dance1.png` a `jevil_down_dance8.png` vers le bas, `jevil_up_dance1.png` a `jevil_up_dance8.png` vers le haut et `jevil_side_taunt1.png` a `jevil_side_taunt7.png` comme action laterale. Une emote `default` comme `withered_bonnie_sit1.png` s'applique a toutes les directions.
+Jevil utilise actuellement `jevil_down_dance1.png` a `jevil_down_dance8.png` vers le bas, `jevil_up_dance1.png` a `jevil_up_dance8.png` vers le haut et `jevil_side_taunt1.png` a `jevil_side_taunt7.png` comme action laterale. Les danses `spamton_dance1.png` a `spamton_dance28.png` sont une emote `default` en boucle dans toutes les directions. Une emote `default` statique comme `withered_bonnie_sit1.png` s'applique aussi a toutes les directions.
 
 ## Serveur de signalisation
 
@@ -24,13 +24,13 @@ Le jeu utilise par défaut le broker public PeerJS `peerjs-server.onrender.com`,
 
 ## Tileset de la carte
 
-Les tuiles de `Tilesets/Grass/` (`grass_XXXX.png`) et `Tilesets/Road/` (`roadXXXX.png`) utilisent quatre bits dans l'ordre haut, droite, bas, gauche. Un bit a la valeur `1` lorsque la tuile voisine est du meme type. Des variantes facultatives peuvent utiliser un suffixe numerique (`grass_XXXX_1.png`, `grass_XXXX_2.png`, etc.) ; elles sont chargees automatiquement et choisies de maniere stable quand elles existent. La carte genere actuellement une route sinueuse en utilisant ces masques pour choisir automatiquement les bordures.
+Les tuiles de `Tilesets/Grass/` (`grass_XXXX.png`), `Tilesets/Road/` (`roadXXXX.png`) et `Tilesets/Sidewalk/` (`sidewalkXXXX.png`) utilisent quatre bits dans l'ordre haut, droite, bas, gauche. Un bit a la valeur `1` lorsque la tuile voisine est du meme type. Des variantes facultatives peuvent utiliser un suffixe numerique (`grass_XXXX_1.png`, `grass_XXXX_2.png`, etc.) ; elles sont chargees automatiquement et choisies de maniere stable quand elles existent. La carte genere actuellement une route sinueuse en utilisant ces masques pour choisir automatiquement les bordures.
 
 La presence utilise PeerJS/WebRTC depuis un CDN, sans serveur applicatif a maintenir. Le jeu repasse automatiquement en mode solo si le service PeerJS ou le salon ne sont pas disponibles.
 
 ## Entrer dans une maison
 
-En marchant sur la hitbox en bas-centre d'une maison, une transition en fondu noir amene vers une petite piece interieure (sol en tuiles `Tilesets/floor.png`, entourage noir). On ne peut pas traverser les murs de la piece. La case du bas qui depasse est le pas de porte : y marcher declenche le fondu de sortie et replace le joueur devant la maison. Chaque maison est une zone a part : seuls les joueurs entres dans la meme maison s'y voient entre eux ; ils redeviennent visibles aux autres joueurs de la prairie en ressortant. Necessite l'image `Tilesets/floor.png` (une tuile de sol simple, sans masque de bordure).
+En marchant sur la hitbox en bas-centre d'une maison, une transition en fondu noir amene vers une petite piece interieure (sol en tuiles `Tilesets/Interiors/floor.png`, entourage noir). On ne peut pas traverser les murs de la piece. La case du bas qui depasse est le pas de porte : y marcher declenche le fondu de sortie et replace le joueur devant la maison. Chaque maison est une zone a part : seuls les joueurs entres dans la meme maison s'y voient entre eux ; ils redeviennent visibles aux autres joueurs de la prairie en ressortant. Necessite l'image `Tilesets/Interiors/floor.png` (une tuile de sol simple, sans masque de bordure).
 
 ## Oeuf de recompense
 

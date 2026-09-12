@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.171840948';
+const APP_VERSION = '2026.09.12.180129899';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -36,8 +36,10 @@ const eggGlow = document.querySelector('#egg-glow');
 const eggCard = document.querySelector('.egg-card');
 const skinModal = document.querySelector('#skin-modal');
 const skinClose = document.querySelector('#skin-close');
+const skinBack = document.querySelector('#skin-back');
 const skinList = document.querySelector('#skin-list');
 const skinResult = document.querySelector('#skin-result');
+const skinIntro = document.querySelector('#skin-intro');
 const coinAmount = document.querySelector('#coin-amount');
 const skinCoinAmount = document.querySelector('#skin-coin-amount');
 const chatToggle = document.querySelector('#chat-toggle');
@@ -182,9 +184,9 @@ function sendVersionAwareReload() {
 function loadTileTexture(type, mask, variation = '') {
   const image = new Image();
   const separator = type === 'grass' ? '_' : '';
-  const folder = type === 'grass' ? 'Grass' : type === 'sidewalk' ? '' : 'Road';
+  const folder = type === 'grass' ? 'Grass' : type === 'sidewalk' ? 'Sidewalk' : 'Road';
   const fileName = type === 'sidewalk' ? `sidewalk${mask}${variation}.png` : `${type}${separator}${mask}${variation}.png`;
-  image.src = type === 'grass' || type === 'road' ? `Tilesets/${folder}/${fileName}` : `${fileName}`;
+  image.src = `Tilesets/${folder}/${fileName}`;
   image.addEventListener('load', () => { invalidateTerrainCache(); requestAnimationFrame(draw); });
   return image;
 }
@@ -229,7 +231,7 @@ const houseTextures = {
 Object.values(houseTextures).forEach((image) => {
   image.addEventListener('load', () => { updateHouseStructureBounds(); });
 });
-const interiorFloorTexture = loadAssetImage('Tilesets/floor.png');
+const interiorFloorTexture = loadAssetImage('Tilesets/Interiors/floor.png');
 const screenFade = document.querySelector('#screen-fade');
 const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((name) => {
   const image = new Image();
@@ -291,6 +293,9 @@ const characterEmotes = {
   },
   'withered-bonnie': {
     default: { prefix: 'withered_bonnie_sit', frameCount: 1, frameDuration: 180, mode: 'loop' },
+  },
+  spamton: {
+    default: { prefix: 'spamton_dance', frameCount: 28, frameDuration: 140, mode: 'loop' },
   },
 };
 const characterEmoteSprites = {};
@@ -485,11 +490,11 @@ function updateSkinLibraryAnimations() {
 }
 
 const eggTextures = {
-  stages: ['Tilesets/pipis.png', 'Tilesets/pipis_break1.png', 'Tilesets/pipis_break2.png', 'Tilesets/pipis_break3.png'],
-  broken: 'Tilesets/pipis_broken.png',
-  left: 'Tilesets/pipis_broken_left.png',
-  right: 'Tilesets/pipis_broken_right.png',
-  shards: ['Tilesets/pipis_shard1.png', 'Tilesets/pipis_shard2.png', 'Tilesets/pipis_shard3.png'],
+  stages: ['Tilesets/Rewards/pipis.png', 'Tilesets/Rewards/pipis_break1.png', 'Tilesets/Rewards/pipis_break2.png', 'Tilesets/Rewards/pipis_break3.png'],
+  broken: 'Tilesets/Rewards/pipis_broken.png',
+  left: 'Tilesets/Rewards/pipis_broken_left.png',
+  right: 'Tilesets/Rewards/pipis_broken_right.png',
+  shards: ['Tilesets/Rewards/pipis_shard1.png', 'Tilesets/Rewards/pipis_shard2.png', 'Tilesets/Rewards/pipis_shard3.png'],
 };
 const eggRarities = [
   { key: 'commun', label: 'Commun', color: '#cfd8cd' },
@@ -538,6 +543,13 @@ const skins = [
   { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];
+const skinLicenses = [
+  { id: 'undertale', label: 'Undertale', description: 'Ruines et monstres souterrains', texture: 'Tilesets/Interiors/ruins.png', character: 'sans', skinIds: ['frisk', 'temmie', 'papyrus', 'sans', 'undyne'] },
+  { id: 'fnaf', label: 'Five Nights at Freddy’s', description: 'Animatroniques dans la nuit', texture: 'Tilesets/Interiors/checkered_floor.png', character: 'foxy', skinIds: ['foxy', 'puppet', 'nightmare-fredbear', 'springtrap', 'nightmarionne', 'funtime-freddy', 'balloon-boy', 'el-chip', 'lefty', 'toy-bonnie', 'withered-bonnie'] },
+  { id: 'deltarune', label: 'Deltarune', description: 'Un monde entre lumière et ténèbres', texture: 'Tilesets/Interiors/floor.png', character: 'noelle', skinIds: ['noelle', 'noelle-alt', 'spamton', 'asgore', 'jevil', 'rouxls-kaard'] },
+  { id: 'other', label: 'Autres', description: 'Personnages venus d’ailleurs', texture: 'Tilesets/Interiors/missing.png', character: 'pikachu', skinIds: ['red-crewmate', 'villager', 'pikachu', 'steve'] },
+];
+let activeSkinLicense = null;
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const accountsStorageKey = 'noelle-meadow-accounts-v1';
 const activeAccountStorageKey = 'noelle-meadow-active-account-v1';
@@ -1154,10 +1166,10 @@ const houseStructures = [
 // dediee a sa position n'est necessaire pendant la conduite.
 const car = { id: 'car-1', x: 560 / WORLD_SIZE.width, y: 700 / WORLD_SIZE.height, direction: 'down', driverId: null };
 const carTextures = {
-  down: loadAssetImage('car_down.png'),
-  left: loadAssetImage('car_left.png'),
-  right: loadAssetImage('car_right.png'),
-  up: loadAssetImage('car_up.png'),
+  down: loadAssetImage('Vehicles/car_down.png'),
+  left: loadAssetImage('Vehicles/car_left.png'),
+  right: loadAssetImage('Vehicles/car_right.png'),
+  up: loadAssetImage('Vehicles/car_up.png'),
 };
 
 function getCarRenderPosition() {
@@ -2016,6 +2028,7 @@ function sendChatMessage(event) {
 }
 
 function openSkinLibrary() {
+  activeSkinLicense = null;
   renderSkinLibrary();
   skinResult.textContent = '';
   skinModal.hidden = false;
@@ -2026,9 +2039,43 @@ function closeSkinLibrary() {
   skinModal.hidden = true;
 }
 
+function goBackToSkinLicenses() {
+  if (!activeSkinLicense) {
+    closeSkinLibrary();
+    return;
+  }
+  activeSkinLicense = null;
+  renderSkinLibrary();
+  skinBack.focus();
+}
+
 function renderSkinLibrary() {
   skinList.replaceChildren();
-  skins.forEach((skin) => {
+  skinList.scrollTop = 0;
+  skinIntro.textContent = activeSkinLicense
+    ? 'Achète puis équipe ton personnage préféré.'
+    : 'Choisis une licence pour parcourir ses personnages.';
+  if (!activeSkinLicense) {
+    skinList.className = 'license-list';
+    skinLicenses.forEach((license) => {
+      const banner = document.createElement('button');
+      banner.type = 'button';
+      banner.className = 'license-banner';
+      banner.dataset.license = license.id;
+      banner.style.setProperty('--license-character', `url("${skinPaths[license.character].folder}/${skinPaths[license.character].prefix}_down2.png")`);
+      banner.innerHTML = `<span><h3>${license.label}</h3><p>${license.description}</p></span>`;
+      banner.addEventListener('click', () => {
+        activeSkinLicense = license.id;
+        renderSkinLibrary();
+        skinBack.focus();
+      });
+      skinList.append(banner);
+    });
+    return;
+  }
+  skinList.className = 'skin-list';
+  const license = skinLicenses.find((entry) => entry.id === activeSkinLicense);
+  skins.filter((skin) => license.skinIds.includes(skin.id)).forEach((skin) => {
     const owned = session.ownedSkins.includes(skin.id);
     const equipped = localPlayer.character === skin.id;
     const item = document.createElement('article');
@@ -2488,6 +2535,7 @@ emoteToggle.addEventListener('click', () => {
 eggClose.addEventListener('click', closeEgg);
 eggModal.querySelector('.egg-modal-backdrop').addEventListener('click', closeEgg);
 skinClose.addEventListener('click', closeSkinLibrary);
+skinBack.addEventListener('click', goBackToSkinLicenses);
 skinModal.querySelector('.skin-modal-backdrop').addEventListener('click', closeSkinLibrary);
 eggImage.addEventListener('click', hitEgg);
 eggImage.addEventListener('keydown', (event) => {

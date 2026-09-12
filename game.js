@@ -202,6 +202,17 @@ const houseTextures = {
   house2: loadAssetImage('Houses/house2.png'),
   house3: loadAssetImage('Houses/house3.png'),
 };
+// loadAssetImage() only triggers a redraw on load - it doesn't know about
+// updateHouseStructureBounds(). If a house PNG finishes loading after the
+// first resize()/updateHouseStructureBounds() call (very likely, since that
+// call runs on page load before any image has necessarily finished
+// downloading), visualWidth/visualHeight stay stuck on the baseWidth/baseHeight
+// fallback forever, so the real (usually larger) texture gets drawn squashed
+// into that undersized box. Recomputing bounds on each house texture's own
+// 'load' event fixes this regardless of load order/timing.
+Object.values(houseTextures).forEach((image) => {
+  image.addEventListener('load', () => { updateHouseStructureBounds(); });
+});
 const interiorFloorTexture = loadAssetImage('Tilesets/floor.png');
 const screenFade = document.querySelector('#screen-fade');
 const talkboxTextures = Object.fromEntries(['corner', 'side', 'interior'].map((name) => {

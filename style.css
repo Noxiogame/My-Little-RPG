@@ -158,6 +158,15 @@ button, input { font: inherit; }
 .account-avatar { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--mint); border-radius: 50%; color: var(--mint); font-size: 12px; }
 .main-menu, .account-modal { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; background: rgba(10,18,17,.2); backdrop-filter: blur(1px); }
 .main-menu[hidden], .account-modal[hidden] { display: none; }
+.house-choice-modal { position: absolute; z-index: 22; inset: 0; display: grid; place-items: center; }
+.house-choice-modal[hidden] { display: none; }
+.house-choice-backdrop { position: absolute; inset: 0; background: rgba(10,18,17,.76); backdrop-filter: blur(3px); }
+.house-choice-card { position: relative; width: min(360px, calc(100vw - 28px)); padding: 28px 18px 18px; border: 1px solid rgba(247,241,222,.3); background: #182a27; box-shadow: 0 18px 55px rgba(0,0,0,.4); text-align: center; }
+.house-choice-card h2 { margin: 0; font-size: 24px; font-weight: 600; }
+.house-choice-copy { margin: 8px 0 15px; color: var(--muted); font-size: 12px; }
+.house-choice-list { display: grid; gap: 8px; margin-bottom: 9px; }
+.house-choice-list button { width: 100%; border: 1px solid var(--mint); padding: 11px 12px; background: rgba(185,231,177,.1); color: var(--ink); cursor: pointer; font: 11px 'DM Mono', monospace; text-align: left; }
+.house-choice-list button:hover, .house-choice-list button:focus-visible { background: var(--mint); color: #16322c; outline: none; }
 .main-menu { pointer-events: none; }
 .main-menu-card, .account-card { position: relative; width: min(430px, calc(100vw - 24px)); padding: 30px 18px 18px; border: 1px solid rgba(247,241,222,.3); background: rgba(24,42,39,.94); box-shadow: 0 20px 60px rgba(0,0,0,.45); text-align: center; }
 .main-menu-card { pointer-events: auto; }

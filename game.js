@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.204236204';
+const APP_VERSION = '2026.09.12.214936486';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -69,6 +69,9 @@ const accountCoins = document.querySelector('#account-coins');
 const accountNickname = document.querySelector('#account-nickname');
 const saveNickname = document.querySelector('#save-nickname');
 const accountLogout = document.querySelector('#account-logout');
+const houseChoiceModal = document.querySelector('#house-choice-modal');
+const houseChoiceList = document.querySelector('#house-choice-list');
+const houseChoiceCancel = document.querySelector('#house-choice-cancel');
 const loginIdentifier = document.querySelector('#login-identifier');
 const loginPassword = document.querySelector('#login-password');
 const loginAccount = document.querySelector('#login-account');
@@ -171,6 +174,9 @@ function handleVersionMismatch(remoteVersion, source = 'remote') {
   if (source === 'remote') {
     setTimeout(() => reloadGameSafely(), 1200);
   }
+  if (source === 'remote') {
+    setTimeout(() => reloadGameSafely(), 1200);
+  }
 }
 
 function sendVersionAwareReload() {
@@ -179,6 +185,7 @@ function sendVersionAwareReload() {
     addChatMessage('Déconnexion de la prairie pour actualiser proprement le jeu…', 'Prairie');
   }
   reloadGameSafely();
+  localStorage.setItem('app-last-version', APP_VERSION);
 }
 
 function loadTileTexture(type, mask, variation = '') {
@@ -362,7 +369,7 @@ function getEmoteSoundVolume(source) {
   const distanceX = wrapDelta(sourceX - localPlayer.x) * WORLD_SIZE.width / TILE_SIZE;
   const distanceY = wrapDelta(sourceY - localPlayer.y) * WORLD_SIZE.height / TILE_SIZE;
   const distanceInTiles = Math.hypot(distanceX, distanceY);
-  const maxDistanceInTiles = 6;
+  const maxDistanceInTiles = 15;
   const proximity = Math.max(0, Math.min(1, 1 - distanceInTiles / maxDistanceInTiles));
   return proximity * proximity;
 }
@@ -776,6 +783,10 @@ function updateSkinToggle(character = session.character) {
   skinToggleImage.alt = `Skin équipé : ${character}`;
   skinToggle.title = `Skin équipé : ${character}`;
   updateEmoteToggle(character);
+  if (localPlayer.moving && emoteActive) {
+    emoteActive = false;
+    localPlayer.emoteActive = false;
+}
 }
 
 function updateEmoteToggle(character = localPlayer.character) {
@@ -1179,7 +1190,24 @@ function getOrCreatePlayerId() {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
   }
 }
-const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, emoteDuration: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0, drivingCar: false };
+const HOME_HOUSE_ID = 'house-5';
+const HOME_ROOM_PREFIX = 'player-home:';
+const FURNITURE_STORAGE_PREFIX = 'prairie-home-furniture:';
+const chairTexture = loadAssetImage('chair.png');
+const homeFurnitureByOwner = new Map();
+let pendingHouseEntry = null;
+function getFurnitureStorageKey(ownerId) {
+  return `${FURNITURE_STORAGE_PREFIX}${ownerId}`;
+}
+function loadLocalFurniture() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(getFurnitureStorageKey(getOrCreatePlayerId())) || '[]');
+    return Array.isArray(saved) ? saved.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < 20) : [];
+  } catch { return []; }
+}
+const localFurniture = new Set(loadLocalFurniture());
+const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, nickname: session.nickname, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, emoteDuration: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, homeOwnerId: null, furniture: [...localFurniture], roomX: 0, roomY: 0, drivingCar: false };
+homeFurnitureByOwner.set(localPlayer.id, localFurniture);
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -1391,11 +1419,22 @@ function fadeTransition(onMidpoint) {
   });
 }
 
-function enterHouse(structure) {
-  if (transitionState.active || localPlayer.insideHouse || !structure || !structure.doorZone) return;
+function getHomeRoomId(ownerId) { return `${HOME_ROOM_PREFIX}${ownerId}`; }
+
+function getHomeOccupants() {
+  return [...remotePlayers.values()].filter((player) => player.insideHouse === getHomeRoomId(player.id) && player.homeOwnerId === player.id);
+}
+
+function finishHouseEntry(structure, ownerId = localPlayer.id) {
+  if (transitionState.active || localPlayer.insideHouse || !structure) return;
   transitionState.active = true;
   fadeTransition(() => {
-    localPlayer.insideHouse = structure.id;
+    localPlayer.insideHouse = structure.id === HOME_HOUSE_ID ? getHomeRoomId(ownerId) : structure.id;
+    localPlayer.homeOwnerId = structure.id === HOME_HOUSE_ID ? ownerId : null;
+    if (ownerId === localPlayer.id) {
+      homeFurnitureByOwner.set(localPlayer.id, localFurniture);
+      localPlayer.furniture = [...localFurniture];
+    }
     localPlayer.roomX = doorTileColumn * TILE_SIZE + TILE_SIZE / 2;
     localPlayer.roomY = roomPixel.height - TILE_SIZE * .6;
     localPlayer.direction = 'up';
@@ -1403,12 +1442,45 @@ function enterHouse(structure) {
   }).then(() => { transitionState.active = false; });
 }
 
+function closeHouseChoice() {
+  pendingHouseEntry = null;
+  houseChoiceModal.hidden = true;
+}
+
+function showHouseChoice(structure, occupants) {
+  pendingHouseEntry = structure;
+  houseChoiceList.replaceChildren();
+  const choices = [{ id: localPlayer.id, label: 'Ma maison' }, ...occupants.map((player) => ({ id: player.id, label: `Maison de ${player.nickname || player.id.slice(-6)}` }))];
+  choices.forEach((choice) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = choice.label;
+    button.addEventListener('click', () => {
+      const selectedStructure = pendingHouseEntry;
+      closeHouseChoice();
+      if (selectedStructure) finishHouseEntry(selectedStructure, choice.id);
+    });
+    houseChoiceList.append(button);
+  });
+  houseChoiceModal.hidden = false;
+}
+
+function enterHouse(structure) {
+  if (transitionState.active || localPlayer.insideHouse || !structure || !structure.doorZone) return;
+  if (structure.id === HOME_HOUSE_ID) {
+    const occupants = getHomeOccupants();
+    if (occupants.length) { showHouseChoice(structure, occupants); return; }
+  }
+  finishHouseEntry(structure);
+}
+
 function exitHouse() {
-  const structure = houseStructures.find((house) => house.id === localPlayer.insideHouse);
+  const structure = houseStructures.find((house) => house.id === localPlayer.insideHouse || (house.id === HOME_HOUSE_ID && localPlayer.insideHouse?.startsWith(HOME_ROOM_PREFIX)));
   if (transitionState.active || !structure) return;
   transitionState.active = true;
   fadeTransition(() => {
     localPlayer.insideHouse = null;
+    localPlayer.homeOwnerId = null;
     localPlayer.x = structure.exitSpawn?.x ? structure.exitSpawn.x / worldSize.width : localPlayer.x;
     localPlayer.y = structure.exitSpawn?.y ? structure.exitSpawn.y / worldSize.height : localPlayer.y;
     localPlayer.direction = 'down';
@@ -1467,6 +1539,18 @@ function drawInteriorPlayer(player, isLocal = false) {
   drawSpeechBubble(player, x, y - height - 5);
 }
 
+function drawInteriorFurniture(ownerId) {
+  const furniture = homeFurnitureByOwner.get(ownerId) || [];
+  const chairReady = chairTexture.complete && chairTexture.naturalWidth > 0;
+  furniture.forEach((tileIndex) => {
+    const column = tileIndex % ROOM_COLS;
+    const row = Math.floor(tileIndex / ROOM_COLS);
+    const position = roomToScreen(column * TILE_SIZE, row * TILE_SIZE);
+    const size = TILE_SIZE * ROOM_ZOOM;
+    if (chairReady) context.drawImage(chairTexture, position.x, position.y, size, size);
+  });
+}
+
 function drawInterior() {
   const { width, height } = viewport;
   context.fillStyle = '#04070a';
@@ -1491,6 +1575,8 @@ function drawInterior() {
   context.fillStyle = '#101b1a';
   context.fillRect(doorPosition.x, doorPosition.y, doorSize, doorSize * .3);
   context.restore();
+
+  if (localPlayer.homeOwnerId) drawInteriorFurniture(localPlayer.homeOwnerId);
 
   const insidePlayers = [
     ...[...remotePlayers.values()].filter((player) => player.insideHouse === localPlayer.insideHouse),
@@ -1842,6 +1928,7 @@ function drawSpeechBubble(player, anchorX, anchorY) {
   context.textBaseline = 'middle';
   lines.forEach((text, index) => context.fillText(text, anchorX, top + padding + 7 + index * 14));
   context.restore();
+  if (localPlayer.homeOwnerId) drawInteriorFurniture(localPlayer.homeOwnerId);
 }
 
 function draw() {
@@ -1959,7 +2046,7 @@ function update(delta) {
   }
   if (localPlayer.insideHouse) {
     if (!transitionState.active) updateInside(delta);
-  } else if (transitionState.active) {
+  } else if (transitionState.active || !houseChoiceModal.hidden) {
     localPlayer.moving = false;
   } else {
     const vector = inputVector();
@@ -2038,6 +2125,9 @@ function sendState() {
       speech: localPlayer.speech || '',
       speechUntil: Number.isFinite(localPlayer.speechUntil) ? localPlayer.speechUntil : 0,
       insideHouse: localPlayer.insideHouse || null,
+      homeOwnerId: localPlayer.homeOwnerId || null,
+      nickname: session.nickname || localPlayer.id.slice(-6),
+      furniture: [...localFurniture],
       roomX: localPlayer.roomX || 0,
       roomY: localPlayer.roomY || 0,
       drivingCar: localPlayer.drivingCar || false,
@@ -2257,6 +2347,8 @@ function receive(connection, payload) {
   }
   if (payload.type === 'state') {
     const previous = remotePlayers.get(payload.player.id);
+    const remoteFurniture = Array.isArray(payload.player.furniture) ? payload.player.furniture.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < ROOM_COLS * ROOM_ROWS) : [];
+    homeFurnitureByOwner.set(payload.player.id, remoteFurniture);
     const enteredDifferentHouse = payload.player.insideHouse && payload.player.insideHouse !== previous?.insideHouse;
     const player = {
       ...payload.player,
@@ -2339,6 +2431,8 @@ function receive(connection, payload) {
     remotePlayers.forEach((_player, id) => { if (!incomingIds.has(id) && id !== localPlayer.id) remotePlayers.delete(id); });
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
+      const remoteFurniture = Array.isArray(player.furniture) ? player.furniture.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < ROOM_COLS * ROOM_ROWS) : [];
+      homeFurnitureByOwner.set(player.id, remoteFurniture);
       const existing = remotePlayers.get(player.id);
       const remotePlayer = { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, emoteStartedAt: existing && existing.emoteActionId === player.emoteActionId ? existing.emoteStartedAt : animationTime, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer };
       remotePlayers.set(player.id, remotePlayer);
@@ -2510,6 +2604,23 @@ canvas.addEventListener('wheel', (event) => {
 }, { passive: false });
 canvas.addEventListener('click', (event) => {
   const rect = canvas.getBoundingClientRect();
+  if (localPlayer.insideHouse && localPlayer.homeOwnerId === localPlayer.id && !transitionState.active) {
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const roomX = (screenX - viewport.width / 2) / ROOM_ZOOM + roomPixel.width / 2;
+    const roomY = (screenY - viewport.height / 2) / ROOM_ZOOM + roomPixel.height / 2;
+    const column = Math.floor(roomX / TILE_SIZE);
+    const row = Math.floor(roomY / TILE_SIZE);
+    if (column >= 0 && column < ROOM_COLS && row >= 0 && row < ROOM_ROWS) {
+      const tileIndex = row * ROOM_COLS + column;
+      if (localFurniture.has(tileIndex)) localFurniture.delete(tileIndex);
+      else localFurniture.add(tileIndex);
+      localPlayer.furniture = [...localFurniture];
+      localStorage.setItem(getFurnitureStorageKey(localPlayer.id), JSON.stringify([...localFurniture]));
+      sendState();
+      return;
+    }
+  }
   handleCarClick(event.clientX - rect.left, event.clientY - rect.top);
 });
 canvas.addEventListener('pointerdown', (event) => {
@@ -2563,6 +2674,7 @@ window.addEventListener('pointerup', releaseJoystick, { passive: true });
 window.addEventListener('pointercancel', releaseJoystick, { passive: true });
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
+    if (!houseChoiceModal.hidden) { closeHouseChoice(); return; }
     if (!skinModal.hidden) { closeSkinLibrary(); return; }
     if (!eggModal.hidden) { closeEgg(); return; }
     if (!accountModal.hidden) { closeAccount(); return; }
@@ -2582,6 +2694,8 @@ accountButton.addEventListener('click', openAccount);
 skinToggle.addEventListener('click', openSkinLibrary);
 chatToggle.addEventListener('click', toggleChat);
 chatClose.addEventListener('click', closeChat);
+houseChoiceCancel.addEventListener('click', closeHouseChoice);
+houseChoiceModal.querySelector('.house-choice-backdrop').addEventListener('click', closeHouseChoice);
 reloadButton.addEventListener('click', sendVersionAwareReload);
 accountClose.addEventListener('click', closeAccount);
 accountModal.querySelector('.account-modal-backdrop').addEventListener('click', closeAccount);

@@ -10,6 +10,20 @@ Ouvrir `index.html` dans un navigateur ou publier le dossier avec GitHub Pages. 
 
 Le joystick fonctionne au doigt sur mobile. Les touches `WASD` et les fleches sont aussi disponibles sur ordinateur.
 
+## Serveur PeerJS pour GitHub Pages
+
+Le jeu est un front statique et ne peut pas faire de signalisation PeerJS par lui-meme. Il faut donc un serveur PeerJS accessible publiquement et le pointer depuis l’URL du jeu :
+
+`?peerjsHost=votre-domaine.com&peerjsSecure=true&peerjsPort=443&peerjsPath=/peerjs`
+
+Exemple :
+
+`https://votre-user.github.io/Noelles-Meadow/?peerjsHost=peerjs.example.com&peerjsSecure=true&peerjsPort=443&peerjsPath=/peerjs`
+
+Sans ce parametre, la prairie ne peut pas organiser les connexions entre joueurs. 
+
+Le serveur PeerJS doit exposer le point d’API standard `peerjs` sur le chemin choisi, et le host doit rester stable pour que les parties se rejoignent correctement sur GitHub Pages.
+
 ## Tileset de la carte
 
 Les tuiles de `Tilesets/Grass/` (`grass_XXXX.png`) et `Tilesets/Road/` (`roadXXXX.png`) utilisent quatre bits dans l'ordre haut, droite, bas, gauche. Un bit a la valeur `1` lorsque la tuile voisine est du meme type. Des variantes facultatives peuvent utiliser un suffixe numerique (`grass_XXXX_1.png`, `grass_XXXX_2.png`, etc.) ; elles sont chargees automatiquement et choisies de maniere stable quand elles existent. La carte genere actuellement une route sinueuse en utilisant ces masques pour choisir automatiquement les bordures.

@@ -1,7 +1,7 @@
 ﻿const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.084513224';
+const APP_VERSION = '2026.09.12.085013354';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -889,50 +889,20 @@ const connections = new Map();
 const keys = new Set();
 const joystickInput = { x: 0, y: 0, active: false, pointerId: null };
 const zoomPointers = new Map();
-const PEERJS_SERVER_CANDIDATES = [
-  { host: '0.peerjs.com', secure: true, port: 443, path: '/' },
-  { host: 'peerjs.5q9.me', secure: true, port: 443, path: '/' },
-  { host: 'peerjs-server.herokuapp.com', secure: true, port: 443, path: '/' },
-  { host: 'peerjs-remote.herokuapp.com', secure: true, port: 443, path: '/' },
-];
+const PEERJS_QUERY = new URLSearchParams(window.location.search);
+const PEERJS_HOST = PEERJS_QUERY.get('peerjsHost');
+const PEERJS_CONFIG = PEERJS_HOST ? {
+  debug: 0,
+  host: PEERJS_HOST,
+  secure: PEERJS_QUERY.get('peerjsSecure') !== 'false',
+  port: Number.parseInt(PEERJS_QUERY.get('peerjsPort') || '443', 10) || 443,
+  path: PEERJS_QUERY.get('peerjsPath') || '/peerjs',
+} : null;
 let pinchDistance = null;
 let peer = null;
 let hostConnection = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
-let peerServerIndex = 0;
-let localSyncChannel = null;
-let localSyncEnabled = false;
-
-function getPeerServerConfig() {
-  const base = PEERJS_SERVER_CANDIDATES[Math.min(peerServerIndex, PEERJS_SERVER_CANDIDATES.length - 1)] || { host: '0.peerjs.com', secure: true, port: 443, path: '/' };
-  return { debug: 0, ...base, path: base.path || '/' };
-}
-
-function switchPeerServer() {
-  peerServerIndex = (peerServerIndex + 1) % PEERJS_SERVER_CANDIDATES.length;
-  return getPeerServerConfig();
-}
-
-function peerJsConnectionError(error) {
-  const text = `${error?.type || ''} ${error?.message || ''}`.toLowerCase();
-  return text.includes('server') || text.includes('network') || text.includes('unavailable') || text.includes('429') || text.includes('websocket') || text.includes('handshake');
-}
-
-function enableLocalSyncFallback() {
-  if (localSyncEnabled || !('BroadcastChannel' in window)) return;
-  localSyncEnabled = true;
-  localSyncChannel = new BroadcastChannel(`noelle-meadow-${ROOM_ID}`);
-  localSyncChannel.addEventListener('message', (event) => {
-    const payload = event.data;
-    if (!payload || !payload.type) return;
-    if (payload.senderId === localPlayer.id) return;
-    if (payload.player?.id === localPlayer.id) return;
-    if (payload.playerId === localPlayer.id) return;
-    const localConnection = { peer: payload.player?.id || payload.playerId || payload.sender || `local-${Math.random().toString(36).slice(2, 8)}`, open: true, send: null, close() {} };
-    receive(localConnection, payload);
-  });
-}
 
 function scheduleReconnect(immediate = false) {
   if (reconnectTimer) return;
@@ -1528,16 +1498,10 @@ function sendState() {
   };
   if (isHost) broadcast(payload);
   else if (hostConnection?.open) hostConnection.send(payload);
-  else if (localSyncEnabled && localSyncChannel) localSyncChannel.postMessage({ ...payload, senderId: localPlayer.id });
 }
 
 function broadcast(payload, exceptId = null) {
   connections.forEach((connection, id) => { if (id !== exceptId && connection.open) connection.send(payload); });
-  if (localSyncEnabled && localSyncChannel) {
-    const nextPayload = { ...payload, senderId: localPlayer.id };
-    if (payload.player?.id && payload.player.id !== localPlayer.id) localSyncChannel.postMessage(nextPayload);
-    else if (!payload.playerId || payload.playerId !== localPlayer.id) localSyncChannel.postMessage(nextPayload);
-  }
 }
 
 function initializeLocalSyncFallback() {
@@ -1780,14 +1744,17 @@ function sendLeave() {
 
 function createPeer() {
   if (!window.Peer) return;
+  if (!PEERJS_CONFIG) {
+    addChatMessage('Serveur PeerJS non configuré. Ajoute ?peerjsHost=votre-domaine.com pour activer la prairie.', 'Prairie');
+    return;
+  }
   const hostId = `noelle-meadow-${ROOM_ID}`;
   if (peer) {
     try { peer.destroy(); } catch {}
     peer = null;
   }
   closeAllConnections();
-  const peerConfig = getPeerServerConfig();
-  peer = new Peer(hostId, peerConfig);
+  peer = new Peer(hostId, PEERJS_CONFIG);
   peer.on('open', () => { isHost = true; reconnectAttempts = 0; });
   // NOTE: the initial snapshot is now sent from the 'hello' handler in receive(),
   // only after the joining peer's version has been confirmed to match. Sending it
@@ -1801,30 +1768,25 @@ function createPeer() {
   });
   peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
   peer.on('error', (error) => {
-    const currentServer = getPeerServerConfig();
-    const canRetryServer = PEERJS_SERVER_CANDIDATES.length > 1 && peerJsConnectionError(error);
     if (error?.type === 'unavailable-id') { connectToHost(hostId); return; }
-    if (canRetryServer && currentServer.host !== PEERJS_SERVER_CANDIDATES[PEERJS_SERVER_CANDIDATES.length - 1]?.host) {
-      switchPeerServer();
-      createPeer();
-      return;
-    }
-    enableLocalSyncFallback();
     isHost = false;
     if (!versionMismatchTriggered) scheduleReconnect();
   });
 }
 
 function connectToHost(hostId) {
+  if (!PEERJS_CONFIG) {
+    addChatMessage('Serveur PeerJS non configuré. Ajoute ?peerjsHost=votre-domaine.com pour activer la prairie.', 'Prairie');
+    return;
+  }
   if (peer) {
     try { peer.destroy(); } catch {}
     peer = null;
   }
   closeAllConnections();
-  const peerConfig = getPeerServerConfig();
-  peer = new Peer(undefined, peerConfig);
+  peer = new Peer(undefined, PEERJS_CONFIG);
   peer.on('open', () => {
-    hostConnection = peer.connect(hostId, { reliable: true, host: peerConfig.host, port: peerConfig.port, secure: peerConfig.secure, path: peerConfig.path });
+    hostConnection = peer.connect(hostId, { reliable: true, ...PEERJS_CONFIG });
     wireConnection(hostConnection);
     hostConnection.on('open', () => {
       reconnectAttempts = 0;
@@ -1836,17 +1798,7 @@ function connectToHost(hostId) {
     try { peer.reconnect(); } catch { scheduleReconnect(); }
   });
   peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
-  peer.on('error', (error) => {
-    const currentServer = getPeerServerConfig();
-    const canRetryServer = PEERJS_SERVER_CANDIDATES.length > 1 && peerJsConnectionError(error);
-    if (canRetryServer && currentServer.host !== PEERJS_SERVER_CANDIDATES[PEERJS_SERVER_CANDIDATES.length - 1]?.host) {
-      switchPeerServer();
-      connectToHost(hostId);
-      return;
-    }
-    enableLocalSyncFallback();
-    if (!versionMismatchTriggered) scheduleReconnect();
-  });
+  peer.on('error', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
 }
 
 function resetJoystickPosition() {
@@ -2000,9 +1952,9 @@ chatPanel.hidden = true;
 chatToggle.setAttribute('aria-expanded', 'false');
 mainMenu.hidden = true;
 checkForGameVersion();
-resize(); updateRewardUi(); enableLocalSyncFallback(); createPeer(); requestAnimationFrame(frame);
-initializeLocalSyncFallback();
+resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });
+
 
 
 

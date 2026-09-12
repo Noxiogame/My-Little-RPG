@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.102426154';
+const APP_VERSION = '2026.09.12.104500840';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -65,12 +65,13 @@ const accountModalName = document.querySelector('#account-modal-name');
 const accountCoins = document.querySelector('#account-coins');
 const accountNickname = document.querySelector('#account-nickname');
 const saveNickname = document.querySelector('#save-nickname');
-const accountSkins = document.querySelector('#account-skins');
 const accountLogout = document.querySelector('#account-logout');
 const loginIdentifier = document.querySelector('#login-identifier');
 const loginPassword = document.querySelector('#login-password');
 const loginAccount = document.querySelector('#login-account');
 const openMenuSkins = document.querySelector('#open-menu-skins');
+const skinToggle = document.querySelector('#skin-toggle');
+const skinToggleImage = document.querySelector('#skin-toggle-image');
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
 const MIN_CAMERA_ZOOM = .75;
@@ -531,6 +532,14 @@ function updateAccountUi() {
   accountModalName.textContent = session.accountName;
   accountCoins.textContent = session.coins;
   accountNickname.value = session.nickname;
+  updateSkinToggle(session.character);
+}
+
+function updateSkinToggle(character = session.character) {
+  const skin = skinPaths[character] || skinPaths.noelle;
+  skinToggleImage.src = `${skin.folder}/${skin.prefix}_down2.png`;
+  skinToggleImage.alt = `Skin équipé : ${character}`;
+  skinToggle.title = `Skin équipé : ${character}`;
 }
 
 function enterGame() {
@@ -885,7 +894,24 @@ function getPlayerAnimationOffset(playerId = '') {
   return (hash % 3000) + 1;
 }
 
-const localPlayer = { id: `player-${Math.random().toString(36).slice(2, 8)}`, x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0 };
+// Le playerId identifie une session de jeu (un onglet). On le garde en
+// sessionStorage pour qu'un simple refresh (F5) garde la meme identite : sans
+// ca, chaque refresh generait un nouvel id aleatoire et donnait l'impression
+// aux autres joueurs que la personne etait partie puis qu'une autre venait
+// d'arriver, alors que c'est la meme personne qui recharge la page.
+const PLAYER_ID_STORAGE_KEY = 'noelle-meadow-player-id';
+function getOrCreatePlayerId() {
+  try {
+    const existing = sessionStorage.getItem(PLAYER_ID_STORAGE_KEY);
+    if (existing) return existing;
+    const created = `player-${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(PLAYER_ID_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return `player-${Math.random().toString(36).slice(2, 8)}`;
+  }
+}
+const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0 };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -1253,13 +1279,13 @@ function drawPlayer(player, isLocal = false) {
   const height = pixelHeight * cameraZoom;
   const position = worldToScreen(player.x, player.y);
   const x = position.x;
-  const y = position.y + 4;
+  const y = position.y + 4 * cameraZoom;
   if (!isLocal && (x < -width || x > viewport.width + width || y < -height || y > viewport.height + height)) return;
   context.save();
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET, width, height);
+  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET * cameraZoom, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -1514,11 +1540,26 @@ function broadcast(payload, exceptId = null) {
   connections.forEach((connection, id) => { if (id !== exceptId && connection.open) connection.send(payload); });
 }
 
+// Quand un joueur se reconnecte tres vite (migration de host, coupure
+// reseau breve, refresh), on evite de spammer le tchat avec un "quitte" suivi
+// aussitot d'un "arrive" pour la meme personne : ce n'est pas un vrai depart.
+const RECONNECT_GRACE_MS = 15000;
+const recentlyLeftPlayers = new Map();
+
 function announcePresence(event, playerId, exceptId = null) {
   const label = playerId.slice(-6);
-  const message = event === 'join' ? `${label} arrive dans la prairie.` : `${label} quitte la prairie.`;
-  addChatMessage(message, 'Prairie');
-  broadcast({ type: 'presence', event, playerId, sender: label }, exceptId);
+  if (event === 'leave') {
+    recentlyLeftPlayers.set(playerId, performance.now());
+  }
+  const isQuietReconnect = event === 'join'
+    && recentlyLeftPlayers.has(playerId)
+    && performance.now() - recentlyLeftPlayers.get(playerId) < RECONNECT_GRACE_MS;
+  if (event === 'join') recentlyLeftPlayers.delete(playerId);
+  if (!isQuietReconnect) {
+    const message = event === 'join' ? `${label} arrive dans la prairie.` : `${label} quitte la prairie.`;
+    addChatMessage(message, 'Prairie');
+  }
+  broadcast({ type: 'presence', event, playerId, sender: label, silent: isQuietReconnect }, exceptId);
 }
 
 function addChatMessage(message, sender, isOwn = false) {
@@ -1604,6 +1645,7 @@ function chooseSkin(skin) {
   localPlayer.speechUntil = 0;
   saveSession();
   updateRewardUi();
+  updateSkinToggle();
   renderSkinLibrary();
   skinResult.textContent = `${skin.label} est maintenant équipé.`;
   sendState();
@@ -1682,7 +1724,9 @@ function receive(connection, payload) {
     return;
   }
   if (payload.type === 'presence') {
-    addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
+    if (!payload.silent) {
+      addChatMessage(payload.event === 'join' ? `${payload.sender} arrive dans la prairie.` : `${payload.sender} quitte la prairie.`, 'Prairie');
+    }
     if (payload.event === 'leave') {
       remotePlayers.delete(payload.playerId);
     }
@@ -1698,7 +1742,12 @@ function receive(connection, payload) {
     if (isHost) broadcast(payload, connection.peer);
   }
   if (payload.type === 'snapshot') {
-    remotePlayers.clear();
+    // Reconciliation par diff plutot que clear()+rebuild : un clear() brutal
+    // faisait disparaitre puis reapparaitre tout le monde a chaque snapshot
+    // (ex: apres une migration de host), ce qui donnait l'impression fausse
+    // que tous les autres joueurs venaient de quitter la prairie.
+    const incomingIds = new Set(payload.players.map((player) => player.id));
+    remotePlayers.forEach((_player, id) => { if (!incomingIds.has(id) && id !== localPlayer.id) remotePlayers.delete(id); });
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
       const existing = remotePlayers.get(player.id);
@@ -1713,15 +1762,28 @@ function wireConnection(connection) {
   connections.set(connection.peer, connection);
   connection.on('data', (payload) => receive(connection, payload));
   connection.on('close', () => {
+    const wasHostConnection = connection === hostConnection;
     const removedPlayers = removeRemotePlayerByPeer(connection.peer);
     connections.delete(connection.peer);
-    if (connection === hostConnection) hostConnection = null;
+    if (wasHostConnection) hostConnection = null;
     if (isHost) removedPlayers.forEach((playerId) => announcePresence('leave', playerId, connection.peer));
-    else if (connection === hostConnection) {
-      remotePlayers.clear();
+    else if (wasHostConnection) {
+      // On NE vide PAS remotePlayers ici : couper la connexion au host ne
+      // veut pas dire que les autres joueurs sont partis (ils sont peut-etre
+      // toujours connectes, c'est juste le host qui a change ou a eu un
+      // probleme reseau). Le prochain 'snapshot', une fois reconnecte,
+      // reconciliera proprement la liste par diff. Si la reconnexion echoue
+      // completement, un filet de securite vide la liste plus bas.
       if (!versionMismatchTriggered) {
         addChatMessage('Connexion à la prairie perdue. Tentative de reconnexion…', 'Prairie');
         scheduleReconnect(true);
+        clearTimeout(staleRemotePlayersTimer);
+        staleRemotePlayersTimer = setTimeout(() => {
+          if (!isHost && (!hostConnection || !hostConnection.open) && remotePlayers.size) {
+            remotePlayers.clear();
+            addChatMessage('Impossible de rejoindre la prairie. Nouvelle tentative…', 'Prairie');
+          }
+        }, 12000);
       }
     }
   });
@@ -1737,6 +1799,7 @@ function closeAllConnections() {
   remotePlayers.clear();
 }
 
+let staleRemotePlayersTimer = null;
 let leaveSent = false;
 function sendLeave() {
   if (leaveSent) return;
@@ -1791,6 +1854,7 @@ function connectToHost(hostId) {
     wireConnection(hostConnection);
     hostConnection.on('open', () => {
       reconnectAttempts = 0;
+      clearTimeout(staleRemotePlayersTimer);
       hostConnection.send({ type: 'hello', version: APP_VERSION, player: localPlayer });
     });
   });
@@ -1911,11 +1975,11 @@ window.addEventListener('pagehide', sendLeave);
 window.addEventListener('beforeunload', sendLeave);
 chatForm.addEventListener('submit', sendChatMessage);
 accountButton.addEventListener('click', openAccount);
+skinToggle.addEventListener('click', openSkinLibrary);
 chatToggle.addEventListener('click', toggleChat);
 reloadButton.addEventListener('click', sendVersionAwareReload);
 accountClose.addEventListener('click', closeAccount);
 accountModal.querySelector('.account-modal-backdrop').addEventListener('click', closeAccount);
-accountSkins.addEventListener('click', () => { closeAccount(); openSkinLibrary(); });
 accountLogout.addEventListener('click', logoutAccount);
 showLogin.addEventListener('click', () => showAuthForm('login'));
 showCreate.addEventListener('click', () => showAuthForm('create'));
@@ -1938,6 +2002,10 @@ eggImage.addEventListener('keydown', (event) => {
 setInterval(sendState, 100);
 setInterval(updateRewardUi, 1000);
 setInterval(checkForGameVersion, VERSION_CHECK_INTERVAL);
+setInterval(() => {
+  const now = performance.now();
+  recentlyLeftPlayers.forEach((leftAt, playerId) => { if (now - leftAt > RECONNECT_GRACE_MS) recentlyLeftPlayers.delete(playerId); });
+}, RECONNECT_GRACE_MS);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || versionMismatchTriggered) return;
   if (!isHost && (!hostConnection || !hostConnection.open) && !reconnectTimer) createPeer();

@@ -38,16 +38,18 @@ button, input { font: inherit; }
 .speech-side-right { top: 13px; right: 0; bottom: 13px; height: auto; transform: rotate(180deg); background-repeat: repeat-y; background-size: 13px 13px; }
 .speech-bubble::after { content: ''; position: absolute; z-index: 3; left: 50%; bottom: -9px; width: 13px; height: 13px; transform: translateX(-50%) rotate(45deg); background-color: #19152a; background-image: url('Noelle/talkbox_ui_corner.png'); background-size: 13px 13px; }
 
-.egg-toggle { right: 243px; }
+.egg-toggle { right: 292px; }
 .egg-toggle img { width: 23px; height: 23px; image-rendering: pixelated; animation: egg-idle-bob 2.6s ease-in-out infinite; }
 .egg-cooldown { position: absolute; right: 3px; bottom: 2px; left: 3px; color: var(--ink); font: 8px 'DM Mono', monospace; line-height: 1; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+.skin-toggle { right: 243px; }
+.skin-toggle img { width: 27px; height: 32px; object-fit: contain; image-rendering: pixelated; }
 .egg-toggle:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .6; }
 .egg-toggle.is-ready { border-color: rgba(255,214,140,.55); box-shadow: 0 0 0 rgba(255,214,140,.5); animation: egg-ready-pulse 1.8s ease-in-out infinite; }
 .egg-toggle.is-ready::before { content: ''; position: absolute; inset: -7px; z-index: -1; border-radius: 50%; background: radial-gradient(circle, rgba(255,214,140,.32), transparent 70%); animation: egg-ready-halo 1.8s ease-in-out infinite; }
 @keyframes egg-idle-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3px) rotate(-3deg); } }
 @keyframes egg-ready-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,214,140,.45); } 50% { box-shadow: 0 0 22px 4px rgba(255,214,140,.45); } }
 @keyframes egg-ready-halo { 0%, 100% { transform: scale(.9); opacity: .55; } 50% { transform: scale(1.25); opacity: .95; } }
-.coin-wallet { position: absolute; z-index: 4; top: 18px; right: 292px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 58px; height: 39px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.72); color: var(--ink); font: 12px 'DM Mono', monospace; pointer-events: none; }
+.coin-wallet { position: absolute; z-index: 4; top: 18px; right: 341px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 58px; height: 39px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.72); color: var(--ink); font: 12px 'DM Mono', monospace; pointer-events: none; }
 .coin-icon { display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid var(--coral); border-radius: 50%; color: var(--coral); font-size: 11px; }
 .egg-modal { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; }
 .egg-modal[hidden] { display: none; }
@@ -211,10 +213,11 @@ button, input { font: inherit; }
   .brand { gap: 9px; max-width: calc(100vw - 132px); }
   .account-button { top: 18px; right: 14px; }
   .egg-toggle { top: 64px; right: 14px; }
-  .reload-button { top: 111px; right: 14px; }
-  .chat-toggle { top: 158px; right: 14px; }
-  .coin-wallet { top: 205px; right: 14px; left: auto; }
-  .room-panel { top: 257px; right: 18px; left: 18px; width: auto; }
+  .skin-toggle { top: 111px; right: 14px; }
+  .reload-button { top: 158px; right: 14px; }
+  .chat-toggle { top: 205px; right: 14px; }
+  .coin-wallet { top: 252px; right: 14px; left: auto; }
+  .room-panel { top: 304px; right: 18px; left: 18px; width: auto; }
   .chat-panel { top: 66px; right: 14px; bottom: auto; width: min(300px, calc(100vw - 28px)); height: min(330px, 45dvh); padding: 11px; }
   .hint { display: none; }
   .joystick { left: 12px; bottom: 12px; width: 92px; height: 92px; opacity: .72; }

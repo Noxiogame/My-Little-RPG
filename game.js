@@ -124,10 +124,15 @@ function forceVersionReload(version = APP_VERSION, reason = 'Une mise à jour du
 async function checkForGameVersion() {
   updateVersionBadge();
 
-  const currentQueryVersion = new URLSearchParams(window.location.search).get('v');
-  if (currentQueryVersion && currentQueryVersion === APP_VERSION) {
-    return;
-  }
+  // NOTE: we used to skip this check entirely when the URL's `?v=` query
+  // param already matched APP_VERSION. But that param is written once by
+  // reloadGameSafely()/forceVersionReload() and then stays in the address
+  // bar forever (until the user does a manual hard refresh). Since both
+  // sides of that comparison are then permanently frozen, it always matched
+  // after the first auto-reload - so that client stopped checking
+  // version.json for good, and got stuck on an old build indefinitely.
+  // The sessionStorage guard in forceVersionReload() already prevents
+  // reload loops, so this early-return isn't needed and only caused harm.
 
   try {
     const response = await fetch(`version.json?ts=${Date.now()}`, { cache: 'no-store' });

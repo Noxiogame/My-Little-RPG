@@ -235,6 +235,7 @@ const skinPaths = {
   'balloon-boy': { folder: 'Characters/BalloonBoy', prefix: 'balloon_boy' },
   'el-chip': { folder: 'Characters/ElChip', prefix: 'el_chip' },
   lefty: { folder: 'Characters/Lefty', prefix: 'lefty' },
+  'toy-bonnie': { folder: 'Characters/ToyBonnie', prefix: 'toy_bonnie' },
   'withered-bonnie': { folder: 'Characters/WitheredBonnie', prefix: 'withered_bonnie' },
   villager: { folder: 'Characters/Villageois', prefix: 'villager' },
   'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
@@ -367,6 +368,7 @@ const skins = [
   { id: 'balloon-boy', label: 'Balloon Boy', rarity: 'Rare', price: 280 },
   { id: 'el-chip', label: 'El Chip', rarity: 'Rare', price: 300 },
   { id: 'lefty', label: 'Lefty', rarity: 'Légendaire', price: 700 },
+  { id: 'toy-bonnie', label: 'Toy Bonnie', rarity: 'Rare', price: 320 },
   { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
 ];

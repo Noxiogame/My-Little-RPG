@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.124124056';
+const APP_VERSION = '2026.09.12.132944234';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -83,6 +83,7 @@ const CHARACTER_SPRITE_FOOT_OFFSET = 6;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
 const SIDEWALK_TEXTURE_NAMES = ['0001', '0010', '0011', '0100', '0101', '0110', '1000', '1001', '1010', '1100'];
+const TILE_VARIATION_COUNTS = { grass: { '1111': 6 }, road: {} };
 const tileTextures = { grass: {}, road: {}, sidewalk: {} };
 
 function updateVersionBadge(version = APP_VERSION) {
@@ -186,7 +187,8 @@ function loadTileTexture(type, mask, variation = '') {
 TILE_TEXTURE_NAMES.forEach((mask) => {
   ['grass', 'road'].forEach((type) => {
     tileTextures[type][mask] = [loadTileTexture(type, mask)];
-    for (let variation = 1; variation <= 8; variation += 1) {
+    const variationCount = TILE_VARIATION_COUNTS[type][mask] || 0;
+    for (let variation = 1; variation <= variationCount; variation += 1) {
       tileTextures[type][mask].push(loadTileTexture(type, mask, `_${variation}`));
     }
   });
@@ -263,6 +265,20 @@ const characterSprites = Object.fromEntries(
   Object.keys(skinPaths).map((character) => [character, Object.fromEntries(directions.map((direction) => [direction, []]))]),
 );
 const spriteLoadPromises = new Map();
+const spriteFrameCountOverrides = {
+  frisk: { left: 2, right: 2 },
+  undyne: { left: 2, right: 2 },
+  pikachu: { left: 0, right: 0, side: 3 },
+  puppet: { left: 0, right: 0, side: 4 },
+  'red-crewmate': { left: 0, right: 0, side: 4 },
+  steve: { left: 0, right: 0, side: 4 },
+  'balloon-boy': { left: 0, right: 0, side: 4 },
+  villager: { left: 0, right: 0, side: 4 },
+};
+
+function getSpriteFrameLimit(character, direction) {
+  return spriteFrameCountOverrides[character]?.[direction] ?? (direction === 'side' ? 0 : 4);
+}
 
 function createSprite(character, direction, frame) {
   const image = new Image();
@@ -299,7 +315,8 @@ function probeSpriteFrame(character, direction, frame) {
 async function loadCharacterSpriteDirection(character, direction) {
   const loadFrames = async (sourceDirection) => {
     const frames = [];
-    for (let frame = 1; frame <= 12; frame += 1) {
+    const frameLimit = getSpriteFrameLimit(character, sourceDirection);
+    for (let frame = 1; frame <= frameLimit; frame += 1) {
       const sprite = await probeSpriteFrame(character, sourceDirection, frame);
       if (!sprite) break;
       frames.push(sprite);
@@ -1257,21 +1274,22 @@ function drawTile(type, column, row) {
   const image = availableTextures.length > 0 ? availableTextures[tileRandom(wrappedColumn, wrappedRow, type, mask) % availableTextures.length] : null;
   const x = column * TILE_SIZE;
   const y = row * TILE_SIZE;
+  const tileDrawSize = TILE_SIZE + 1 / cameraZoom;
 
   if (type === 'sidewalk') {
-    if (image) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE);
+    if (image) context.drawImage(image, x, y, tileDrawSize, tileDrawSize);
     else {
       context.fillStyle = '#c8c5b5';
-      context.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+      context.fillRect(x, y, tileDrawSize, tileDrawSize);
     }
     return;
   }
 
-  if (image) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE);
-  else if (type === 'road' && roadFallback.complete && roadFallback.naturalWidth > 0) context.drawImage(roadFallback, x, y, TILE_SIZE, TILE_SIZE);
+  if (image) context.drawImage(image, x, y, tileDrawSize, tileDrawSize);
+  else if (type === 'road' && roadFallback.complete && roadFallback.naturalWidth > 0) context.drawImage(roadFallback, x, y, tileDrawSize, tileDrawSize);
   else {
     context.fillStyle = type === 'road' ? '#6e4f86' : '#315951';
-    context.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    context.fillRect(x, y, tileDrawSize, tileDrawSize);
   }
 }
 
@@ -2033,7 +2051,10 @@ canvas.addEventListener('pointercancel', releaseZoomPointer);
 
 window.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch') return;
-  if (zoomPointers.size > 0 || event.isPrimary === false) return;
+  if (zoomPointers.size > 1 || event.isPrimary === false) {
+    if (zoomPointers.size > 1 && joystickInput.active) releaseJoystick();
+    return;
+  }
   if (event.target instanceof Element && event.target.closest('button, input, textarea, select')) return;
   if (joystickInput.active && joystickInput.pointerId !== null && event.pointerId !== joystickInput.pointerId) return;
   joystickInput.active = true;
@@ -2042,12 +2063,12 @@ window.addEventListener('pointerdown', (event) => {
   setJoystick(event);
 }, { passive: true });
 window.addEventListener('pointermove', (event) => {
-  if (zoomPointers.size > 0) {
+  if (zoomPointers.size > 1) {
     if (joystickInput.active) releaseJoystick();
     return;
   }
   if (joystickInput.active && event.pointerId === joystickInput.pointerId) setJoystick(event);
-}, { passive: true });
+});
 function releaseJoystick() {
   joystickInput.active = false;
   joystickInput.pointerId = null;

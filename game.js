@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.090313748';
+const APP_VERSION = '2026.09.12.091543060';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -890,9 +890,10 @@ const keys = new Set();
 const joystickInput = { x: 0, y: 0, active: false, pointerId: null };
 const zoomPointers = new Map();
 const PEERJS_QUERY = new URLSearchParams(window.location.search);
+const PEERJS_DEFAULT_HOST = 'peerjs-server.onrender.com';
 const PEERJS_CONFIG = {
   debug: 0,
-  host: PEERJS_QUERY.get('peerjsHost') || '0.peerjs.com',
+  host: PEERJS_QUERY.get('peerjsHost') || PEERJS_DEFAULT_HOST,
   secure: PEERJS_QUERY.get('peerjsSecure') !== 'false',
   port: Number.parseInt(PEERJS_QUERY.get('peerjsPort') || '443', 10) || 443,
   path: PEERJS_QUERY.get('peerjsPath') || '/',

@@ -14,7 +14,7 @@ Le joystick fonctionne au doigt sur mobile. Les touches `WASD` et les fleches so
 
 Le projet est hébergé sur GitHub Pages et n’a pas de backend applicatif. La partie multijoueur passe donc par le broker PeerJS standard, exactement comme dans la version historique du projet, sans serveur supplémentaire à maintenir sur GitHub.
 
-Le jeu utilise par défaut la configuration historique `0.peerjs.com` et n’exige pas de paramètre personnalisé tant que le broker PeerJS standard reste accessible. Les paramètres d’URL restent optionnels pour les cas où l’on veut override le host, mais le mode d’origine du projet est bien le serveur public PeerJS + GitHub Pages.
+Le jeu utilise par défaut le broker public PeerJS `peerjs-server.onrender.com`, qui reste disponible pour GitHub Pages. Le host historique `0.peerjs.com` est aujourd’hui trop souvent rate-limité avec des réponses `429`, ce qui casse la visiobilité multijoueur ; les paramètres d’URL restent optionnels pour override le host si besoin.
 
 ## Tileset de la carte
 

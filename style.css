@@ -38,13 +38,13 @@ button, input { font: inherit; }
 .speech-side-right { top: 13px; right: 0; bottom: 13px; height: auto; transform: rotate(180deg); background-repeat: repeat-y; background-size: 13px 13px; }
 .speech-bubble::after { content: ''; position: absolute; z-index: 3; left: 50%; bottom: -9px; width: 13px; height: 13px; transform: translateX(-50%) rotate(45deg); background-color: #19152a; background-image: url('Noelle/talkbox_ui_corner.png'); background-size: 13px 13px; }
 
-.egg-toggle { right: 292px; }
+.egg-toggle { right: 366px; }
 .egg-toggle img { width: 23px; height: 23px; image-rendering: pixelated; animation: egg-idle-bob 2.6s ease-in-out infinite; }
 .egg-cooldown { position: absolute; right: 3px; bottom: 2px; left: 3px; color: var(--ink); font: 8px 'DM Mono', monospace; line-height: 1; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
-.emote-toggle { right: 243px; font-size: 22px; color: var(--mint); }
+.emote-toggle { right: 317px; font-size: 22px; color: var(--mint); }
 .emote-toggle.is-active { border-color: var(--mint); background: rgba(185,231,177,.18); box-shadow: 0 0 18px rgba(185,231,177,.3); }
 .emote-toggle:disabled { cursor: not-allowed; filter: grayscale(1); opacity: .35; }
-.skin-toggle { right: 194px; }
+.skin-toggle { right: 268px; }
 .skin-toggle img { width: 27px; height: 32px; object-fit: contain; image-rendering: pixelated; }
 .egg-toggle:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .6; }
 .egg-toggle.is-ready { border-color: rgba(255,214,140,.55); box-shadow: 0 0 0 rgba(255,214,140,.5); animation: egg-ready-pulse 1.8s ease-in-out infinite; }
@@ -52,7 +52,7 @@ button, input { font: inherit; }
 @keyframes egg-idle-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3px) rotate(-3deg); } }
 @keyframes egg-ready-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,214,140,.45); } 50% { box-shadow: 0 0 22px 4px rgba(255,214,140,.45); } }
 @keyframes egg-ready-halo { 0%, 100% { transform: scale(.9); opacity: .55; } 50% { transform: scale(1.25); opacity: .95; } }
-.coin-wallet { position: absolute; z-index: 4; top: 18px; right: 341px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 58px; height: 39px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.72); color: var(--ink); font: 12px 'DM Mono', monospace; pointer-events: none; }
+.coin-wallet { position: absolute; z-index: 4; top: 18px; right: 415px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 58px; height: 39px; border: 1px solid rgba(247,241,222,.25); background: rgba(16,27,26,.72); color: var(--ink); font: 12px 'DM Mono', monospace; pointer-events: none; }
 .coin-icon { display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid var(--coral); border-radius: 50%; color: var(--coral); font-size: 11px; }
 .egg-modal { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; }
 .egg-modal[hidden] { display: none; }
@@ -146,12 +146,13 @@ button, input { font: inherit; }
 .hud { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 24px 30px; pointer-events: none; }
 .app-version-badge { position: absolute; top: 20px; left: 18px; z-index: 4; border: 1px solid rgba(247,241,222,.24); background: rgba(16,27,26,.72); color: var(--muted); padding: 6px 9px; font: 10px 'DM Mono', monospace; letter-spacing: .08em; text-transform: uppercase; pointer-events: auto; }
 .eyebrow { margin: 0 0 1px; color: var(--mint); font: 500 10px 'DM Mono', monospace; letter-spacing: 2px; }
-.account-button { position: absolute; top: 18px; right: 30px; z-index: 4; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); padding: 6px 9px 6px 6px; background: var(--panel); color: var(--ink); cursor: pointer; font: 10px 'DM Mono', monospace; pointer-events: auto; }
+.account-button { position: absolute; top: 18px; right: 30px; z-index: 4; display: inline-flex; align-items: center; gap: 7px; width: 130px; min-width: 130px; border: 1px solid var(--line); padding: 6px 9px 6px 6px; background: var(--panel); color: var(--ink); cursor: pointer; font: 10px 'DM Mono', monospace; pointer-events: auto; }
 .account-button:hover, .account-button:focus-visible { border-color: var(--mint); outline: none; }
+#account-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-button { position: absolute; top: 18px; z-index: 4; display: grid; place-items: center; width: 39px; height: 39px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; pointer-events: auto; }
 .icon-button:hover, .icon-button:focus-visible { border-color: var(--mint); outline: none; }
-.chat-toggle { right: 96px; }
-.reload-button { right: 145px; font-size: 21px; line-height: 1; }
+.chat-toggle { right: 170px; }
+.reload-button { right: 219px; font-size: 21px; line-height: 1; }
 .chat-icon { position: relative; width: 17px; height: 13px; border: 2px solid currentColor; border-radius: 4px; }
 .chat-icon::after { content: ''; position: absolute; right: 1px; bottom: -5px; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: skewY(-28deg); background: var(--panel); }
 .account-avatar { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--mint); border-radius: 50%; color: var(--mint); font-size: 12px; }

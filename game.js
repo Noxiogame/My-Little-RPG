@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.203027035';
+const APP_VERSION = '2026.09.12.203741686';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -356,10 +356,19 @@ function ensureCharacterEmoteSounds(character, emoteKey) {
   return sounds;
 }
 
+function getEmoteSoundVolume(source) {
+  const sourceX = source.targetX ?? source.x ?? 0;
+  const sourceY = source.targetY ?? source.y ?? 0;
+  const distance = Math.hypot(wrapDelta(sourceX - localPlayer.x), wrapDelta(sourceY - localPlayer.y));
+  const maxDistance = .35;
+  return Math.max(0, Math.min(1, 1 - distance / maxDistance));
+}
+
 function playCharacterEmoteSound(character, emoteKey, player) {
   const sounds = ensureCharacterEmoteSounds(character, emoteKey);
   if (!sounds.length) return;
-  const sound = sounds[Math.floor(Math.random() * sounds.length)];
+  const sourceSound = sounds[Math.floor(Math.random() * sounds.length)];
+  const sound = player.id === localPlayer.id ? sourceSound : sourceSound.cloneNode();
   const updateDuration = () => {
     if (!Number.isFinite(sound.duration) || sound.duration <= 0) return;
     player.emoteDuration = sound.duration * 1000;
@@ -367,8 +376,17 @@ function playCharacterEmoteSound(character, emoteKey, player) {
   };
   sound.addEventListener('loadedmetadata', updateDuration, { once: true });
   updateDuration();
+  sound.volume = player.id === localPlayer.id ? 1 : getEmoteSoundVolume(player);
   sound.currentTime = 0;
   sound.play().catch(() => {});
+}
+
+function playRemoteEmoteSound(player, previousActionId = null) {
+  if (!player.emoteActive || player.emoteActionId === previousActionId) return;
+  const selectedEmote = getCharacterEmote(player.character, player.direction);
+  if (selectedEmote?.emote.mode === 'action') {
+    playCharacterEmoteSound(player.character, selectedEmote.key, player);
+  }
 }
 
 function createMirroredSprite(image) {
@@ -2255,6 +2273,7 @@ function receive(connection, payload) {
       peerId: connection.peer,
     };
     remotePlayers.set(payload.player.id, player);
+    playRemoteEmoteSound(player, previous?.emoteActionId);
     if (isHost) broadcast(payload, connection.peer);
   }
   if (payload.type === 'car-event') {
@@ -2318,7 +2337,9 @@ function receive(connection, payload) {
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
       const existing = remotePlayers.get(player.id);
-      remotePlayers.set(player.id, { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, emoteStartedAt: existing && existing.emoteActionId === player.emoteActionId ? existing.emoteStartedAt : animationTime, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
+      const remotePlayer = { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, emoteStartedAt: existing && existing.emoteActionId === player.emoteActionId ? existing.emoteStartedAt : animationTime, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer };
+      remotePlayers.set(player.id, remotePlayer);
+      playRemoteEmoteSound(remotePlayer, existing?.emoteActionId);
     }
     });
   }

@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.134826626';
+const APP_VERSION = '2026.09.12.143127362';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -85,6 +85,7 @@ const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '110
 const SIDEWALK_TEXTURE_NAMES = ['0001', '0010', '0011', '0100', '0101', '0110', '1000', '1001', '1010', '1100'];
 const TILE_VARIATION_COUNTS = { grass: { '1111': 6 }, road: {} };
 const tileTextures = { grass: {}, road: {}, sidewalk: {} };
+const roadTrackTextures = { horizontal: new Image(), vertical: new Image() };
 
 function updateVersionBadge(version = APP_VERSION) {
   if (appVersionBadge) appVersionBadge.textContent = `v${version}`;
@@ -199,6 +200,9 @@ SIDEWALK_TEXTURE_NAMES.forEach((mask) => {
 const roadFallback = new Image();
 roadFallback.src = 'Tilesets/Road/road.png';
 roadFallback.addEventListener('load', () => requestAnimationFrame(draw));
+roadTrackTextures.horizontal.src = 'Tilesets/Road/road_track_horizontal.png';
+roadTrackTextures.vertical.src = 'Tilesets/Road/road_track_vertical.png';
+Object.values(roadTrackTextures).forEach((image) => image.addEventListener('load', () => requestAnimationFrame(draw)));
 const loadAssetImage = (src) => {
   const image = new Image();
   image.src = src;
@@ -1237,11 +1241,19 @@ function wrapDelta(delta) {
   return ((delta + .5) % 1 + 1) % 1 - .5;
 }
 
-function tileMask(column, row, type) {
+function tileMaskWithPredicate(column, row, predicate) {
   const cols = worldMap[0]?.length || 1;
   const rows = worldMap.length || 1;
-  const same = (offsetColumn, offsetRow) => worldMap[wrapIndex(row + offsetRow, rows)]?.[wrapIndex(column + offsetColumn, cols)] === type;
+  const same = (offsetColumn, offsetRow) => predicate(worldMap[wrapIndex(row + offsetRow, rows)]?.[wrapIndex(column + offsetColumn, cols)]);
   return `${same(0, -1) ? 1 : 0}${same(1, 0) ? 1 : 0}${same(0, 1) ? 1 : 0}${same(-1, 0) ? 1 : 0}`;
+}
+
+function tileMask(column, row, type) {
+  return tileMaskWithPredicate(column, row, (value) => value === type);
+}
+
+function isRoadSurface(value) {
+  return value === 'road' || value === 'sidewalk';
 }
 
 function closestTexture(type, mask) {
@@ -1268,7 +1280,9 @@ function drawTile(type, column, row) {
   const rows = worldMap.length || 1;
   const wrappedColumn = wrapIndex(column, cols);
   const wrappedRow = wrapIndex(row, rows);
-  const mask = tileMask(wrappedColumn, wrappedRow, type);
+  const mask = type === 'road'
+    ? tileMaskWithPredicate(wrappedColumn, wrappedRow, isRoadSurface)
+    : tileMask(wrappedColumn, wrappedRow, type);
   const textures = tileTextures[type]?.[mask] || closestTexture(type, mask);
   const availableTextures = textures.filter((image) => image.complete && image.naturalWidth > 0);
   const image = availableTextures.length > 0 ? availableTextures[tileRandom(wrappedColumn, wrappedRow, type, mask) % availableTextures.length] : null;
@@ -1291,6 +1305,42 @@ function drawTile(type, column, row) {
     context.fillStyle = type === 'road' ? '#6e4f86' : '#315951';
     context.fillRect(x, y, tileDrawSize, tileDrawSize);
   }
+
+  if (type !== 'road') return;
+  const roadCenterX = Math.floor((cols * .55));
+  const roadCenterY = Math.floor((rows * .58));
+  const roadHalfWidth = 1;
+  const onHorizontalCenterline = wrappedRow === roadCenterY
+    && Math.abs(wrappedColumn - roadCenterX) > roadHalfWidth;
+  const onVerticalCenterline = wrappedColumn === roadCenterX
+    && Math.abs(wrappedRow - roadCenterY) > roadHalfWidth;
+  const trackImage = onHorizontalCenterline && (wrappedColumn - roadCenterX) % 3 === 0
+    ? roadTrackTextures.horizontal
+    : onVerticalCenterline && (wrappedRow - roadCenterY) % 3 === 0
+      ? roadTrackTextures.vertical
+      : null;
+  if (trackImage?.complete && trackImage.naturalWidth > 0) {
+    context.drawImage(trackImage, x, y, tileDrawSize, tileDrawSize);
+  }
+}
+
+function drawRoadUnderlay(column, row) {
+  const cols = worldMap[0]?.length || 1;
+  const rows = worldMap.length || 1;
+  const wrappedColumn = wrapIndex(column, cols);
+  const wrappedRow = wrapIndex(row, rows);
+  const mask = tileMaskWithPredicate(wrappedColumn, wrappedRow, isRoadSurface);
+  const textures = tileTextures.road[mask] || closestTexture('road', mask);
+  const availableTextures = textures.filter((image) => image.complete && image.naturalWidth > 0);
+  const image = availableTextures.length > 0
+    ? availableTextures[tileRandom(wrappedColumn, wrappedRow, 'road', mask) % availableTextures.length]
+    : null;
+  const x = column * TILE_SIZE;
+  const y = row * TILE_SIZE;
+  const tileDrawSize = TILE_SIZE + 1 / cameraZoom;
+  context.fillStyle = '#6e4f86';
+  context.fillRect(x, y, tileDrawSize, tileDrawSize);
+  if (image) context.drawImage(image, x, y, tileDrawSize, tileDrawSize);
 }
 
 function resize() {
@@ -1332,6 +1382,12 @@ function drawWorld() {
   context.save();
   context.translate(width / 2 - cameraX * cameraZoom, height / 2 - cameraY * cameraZoom);
   context.scale(cameraZoom, cameraZoom);
+  for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
+    const type_row = worldMap[wrapIndex(rowIndex, rows)];
+    for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {
+      if (type_row[wrapIndex(columnIndex, cols)] === 'sidewalk') drawRoadUnderlay(columnIndex, rowIndex);
+    }
+  }
   for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
     const type_row = worldMap[wrapIndex(rowIndex, rows)];
     for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {

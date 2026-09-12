@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.145423456';
+const APP_VERSION = '2026.09.12.161716240';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -2172,7 +2172,10 @@ function createPeer() {
     if (versionMismatchTriggered) return;
     try { peer.reconnect(); } catch { scheduleReconnect(); }
   });
-  peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
+  peer.on('close', () => {
+    isHost = false;
+    if (!versionMismatchTriggered) scheduleReconnect();
+  });
   peer.on('error', (error) => {
     if (error?.type === 'unavailable-id') { connectToHost(hostId); return; }
     isHost = false;
@@ -2181,6 +2184,7 @@ function createPeer() {
 }
 
 function connectToHost(hostId) {
+  isHost = false;
   if (peer) {
     try { peer.destroy(); } catch {}
     peer = null;

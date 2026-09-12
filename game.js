@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.112755884';
+const APP_VERSION = '2026.09.12.121244645';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -76,7 +76,7 @@ const skinToggleImage = document.querySelector('#skin-toggle-image');
 const TILE_SIZE = 20;
 const WORLD_SIZE = { width: 2520, height: 1200 };
 const MIN_CAMERA_ZOOM = .75;
-const MAX_CAMERA_ZOOM = 2.5;
+const MAX_CAMERA_ZOOM = 4;
 let cameraZoom = 1.35;
 const PLAYER_SPEED = 100;
 const CHARACTER_SPRITE_FOOT_OFFSET = 6;
@@ -1205,8 +1205,27 @@ function createWorldMap() {
   worldMap = map;
 }
 
+// La carte boucle sur elle-meme (est/ouest et nord/sud) : plus de bordure
+// invisible ni de vide en sortie de carte, on ressort simplement de l'autre cote.
+function wrapIndex(index, size) {
+  return ((index % size) + size) % size;
+}
+
+function wrapUnit(value) {
+  return ((value % 1) + 1) % 1;
+}
+
+// Distance signee la plus courte entre deux coordonnees normalisees sur le tore
+// (utilisee pour que la camera et les autres joueurs restent coherents quand on
+// traverse la couture de la boucle).
+function wrapDelta(delta) {
+  return ((delta + .5) % 1 + 1) % 1 - .5;
+}
+
 function tileMask(column, row, type) {
-  const same = (offsetColumn, offsetRow) => worldMap[row + offsetRow]?.[column + offsetColumn] === type;
+  const cols = worldMap[0]?.length || 1;
+  const rows = worldMap.length || 1;
+  const same = (offsetColumn, offsetRow) => worldMap[wrapIndex(row + offsetRow, rows)]?.[wrapIndex(column + offsetColumn, cols)] === type;
   return `${same(0, -1) ? 1 : 0}${same(1, 0) ? 1 : 0}${same(0, 1) ? 1 : 0}${same(-1, 0) ? 1 : 0}`;
 }
 
@@ -1226,10 +1245,18 @@ function tileRandom(column, row, type, mask) {
 }
 
 function drawTile(type, column, row) {
-  const mask = tileMask(column, row, type);
+  // `column`/`row` peuvent sortir de la grille de base (boucle infinie) : on
+  // s'en sert tels quels pour la position a l'ecran, mais on boucle vers la
+  // grille reelle pour choisir la texture/masque afin que la couture soit
+  // invisible.
+  const cols = worldMap[0]?.length || 1;
+  const rows = worldMap.length || 1;
+  const wrappedColumn = wrapIndex(column, cols);
+  const wrappedRow = wrapIndex(row, rows);
+  const mask = tileMask(wrappedColumn, wrappedRow, type);
   const textures = tileTextures[type]?.[mask] || closestTexture(type, mask);
   const availableTextures = textures.filter((image) => image.complete && image.naturalWidth > 0);
-  const image = availableTextures.length > 0 ? availableTextures[tileRandom(column, row, type, mask) % availableTextures.length] : null;
+  const image = availableTextures.length > 0 ? availableTextures[tileRandom(wrappedColumn, wrappedRow, type, mask) % availableTextures.length] : null;
   const x = column * TILE_SIZE;
   const y = row * TILE_SIZE;
 
@@ -1277,16 +1304,22 @@ function drawWorld() {
   context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
   const cameraX = camera.x * worldSize.width;
   const cameraY = camera.y * worldSize.height;
-  const visibleLeft = Math.max(0, Math.floor((cameraX - width / (2 * cameraZoom)) / TILE_SIZE) - 1);
-  const visibleRight = Math.min(worldMap[0]?.length || 0, Math.ceil((cameraX + width / (2 * cameraZoom)) / TILE_SIZE) + 1);
-  const visibleTop = Math.max(0, Math.floor((cameraY - height / (2 * cameraZoom)) / TILE_SIZE) - 1);
-  const visibleBottom = Math.min(worldMap.length, Math.ceil((cameraY + height / (2 * cameraZoom)) / TILE_SIZE) + 1);
+  // Pas de clamp sur les bords ici : la carte boucle, donc on peut demander des
+  // colonnes/lignes hors de la grille de base, `drawTile` se charge de boucler
+  // vers la texture correspondante tout en gardant la vraie position a l'ecran.
+  const visibleLeft = Math.floor((cameraX - width / (2 * cameraZoom)) / TILE_SIZE) - 1;
+  const visibleRight = Math.ceil((cameraX + width / (2 * cameraZoom)) / TILE_SIZE) + 1;
+  const visibleTop = Math.floor((cameraY - height / (2 * cameraZoom)) / TILE_SIZE) - 1;
+  const visibleBottom = Math.ceil((cameraY + height / (2 * cameraZoom)) / TILE_SIZE) + 1;
+  const cols = worldMap[0]?.length || 1;
+  const rows = worldMap.length || 1;
   context.save();
   context.translate(width / 2 - cameraX * cameraZoom, height / 2 - cameraY * cameraZoom);
   context.scale(cameraZoom, cameraZoom);
   for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
+    const type_row = worldMap[wrapIndex(rowIndex, rows)];
     for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {
-      drawTile(worldMap[rowIndex][columnIndex], columnIndex, rowIndex);
+      drawTile(type_row[wrapIndex(columnIndex, cols)], columnIndex, rowIndex);
     }
   }
   context.restore();
@@ -1294,9 +1327,13 @@ function drawWorld() {
 }
 
 function worldToScreen(x, y) {
+  // On prend le chemin le plus court sur le tore : un joueur ou une maison
+  // "de l'autre cote" de la couture apparait quand meme du bon cote a l'ecran.
+  const dx = wrapDelta(x - camera.x);
+  const dy = wrapDelta(y - camera.y);
   return {
-    x: viewport.width / 2 + (x * worldSize.width - camera.x * worldSize.width) * cameraZoom,
-    y: viewport.height / 2 + (y * worldSize.height - camera.y * worldSize.height) * cameraZoom,
+    x: viewport.width / 2 + dx * worldSize.width * cameraZoom,
+    y: viewport.height / 2 + dy * worldSize.height * cameraZoom,
   };
 }
 
@@ -1469,7 +1506,9 @@ function inputVector() {
   return length > 1 ? { x: x / length, y: y / length } : { x, y };
 }
 
-function collidesWithHouseAt(x, y, radiusX = 16, radiusY = 12) {
+function collidesWithHouseAt(rawX, rawY, radiusX = 16, radiusY = 12) {
+  const x = wrapUnit(rawX);
+  const y = wrapUnit(rawY);
   const localLeft = x * worldSize.width - radiusX;
   const localRight = x * worldSize.width + radiusX;
   const localTop = y * worldSize.height - radiusY;
@@ -1505,8 +1544,10 @@ function update(delta) {
     localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
     if (moving) {
       const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
-      const nextX = Math.max(.04, Math.min(.96, localPlayer.x + vector.x * normalizedDistance));
-      const nextY = Math.max(.17, Math.min(.92, localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height));
+      // On boucle plutot que de clamper : sortir d'un cote fait reapparaitre
+      // de l'autre, aucune bordure invisible.
+      const nextX = wrapUnit(localPlayer.x + vector.x * normalizedDistance);
+      const nextY = wrapUnit(localPlayer.y + vector.y * normalizedDistance * worldSize.width / worldSize.height);
       const xBlocked = collidesWithHouseAt(nextX, localPlayer.y, 16, 11);
       if (!xBlocked) localPlayer.x = nextX;
       const yBlocked = collidesWithHouseAt(localPlayer.x, nextY, 12, 16);
@@ -1529,8 +1570,10 @@ function update(delta) {
       player.speech = '';
       player.speechUntil = 0;
     }
-    player.x += (player.targetX - player.x) * smoothing;
-    player.y += (player.targetY - player.y) * smoothing;
+    // Chemin le plus court sur le tore, sinon un joueur qui traverse la
+    // couture semblerait traverser toute la carte en ligne droite.
+    player.x = wrapUnit(player.x + wrapDelta(player.targetX - player.x) * smoothing);
+    player.y = wrapUnit(player.y + wrapDelta(player.targetY - player.y) * smoothing);
     if (player.insideHouse && player.targetInsideHouse === player.insideHouse) {
       player.roomX += (player.targetRoomX - player.roomX) * smoothing;
       player.roomY += (player.targetRoomY - player.roomY) * smoothing;

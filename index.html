@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#101b1a" />
-    <meta name="app-version" content="2026.09.12.104500840" />
+    <meta name="app-version" content="2026.09.12.105005515" />
     <title>La Prairie</title>
-    <link rel="stylesheet" href="style.css?v=2026.09.12.104500840" />
+    <link rel="stylesheet" href="style.css?v=2026.09.12.105005515" />
   </head>
   <body>
     <main class="game-shell">
@@ -70,7 +70,10 @@
       <section class="chat-panel" aria-label="Tchat de la prairie">
         <div class="chat-heading">
           <span>Tchat</span>
-          <span class="chat-live"><span></span> direct</span>
+          <div class="chat-heading-actions">
+            <span class="chat-live"><span></span> direct</span>
+            <button id="chat-close" class="chat-close" type="button" aria-label="Fermer le tchat" title="Fermer le tchat">×</button>
+          </div>
         </div>
         <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Messages du tchat">
           <p class="chat-empty" id="chat-empty">Les messages apparaîtront ici.</p>
@@ -127,7 +130,7 @@
 
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script src="game.js?v=2026.09.12.104500840"></script>
+    <script src="game.js?v=2026.09.12.105005515"></script>
   </body>
 </html>
 

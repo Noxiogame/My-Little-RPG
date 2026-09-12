@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.104500840';
+const APP_VERSION = '2026.09.12.105005515';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -41,6 +41,7 @@ const skinResult = document.querySelector('#skin-result');
 const coinAmount = document.querySelector('#coin-amount');
 const skinCoinAmount = document.querySelector('#skin-coin-amount');
 const chatToggle = document.querySelector('#chat-toggle');
+const chatClose = document.querySelector('#chat-close');
 const chatPanel = document.querySelector('.chat-panel');
 const reloadButton = document.querySelector('#reload-button');
 const mainMenu = document.querySelector('#main-menu');
@@ -620,6 +621,13 @@ function toggleChat() {
   chatToggle.setAttribute('aria-expanded', String(!isOpen));
   chatToggle.setAttribute('aria-label', isOpen ? 'Ouvrir le tchat' : 'Fermer le tchat');
   if (!isOpen) chatInput.focus();
+}
+
+function closeChat() {
+  chatPanel.hidden = true;
+  chatToggle.setAttribute('aria-expanded', 'false');
+  chatToggle.setAttribute('aria-label', 'Ouvrir le tchat');
+  chatToggle.focus();
 }
 
 function logoutAccount() {
@@ -1977,6 +1985,7 @@ chatForm.addEventListener('submit', sendChatMessage);
 accountButton.addEventListener('click', openAccount);
 skinToggle.addEventListener('click', openSkinLibrary);
 chatToggle.addEventListener('click', toggleChat);
+chatClose.addEventListener('click', closeChat);
 reloadButton.addEventListener('click', sendVersionAwareReload);
 accountClose.addEventListener('click', closeAccount);
 accountModal.querySelector('.account-modal-backdrop').addEventListener('click', closeAccount);

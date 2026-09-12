@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.132944234';
+const APP_VERSION = '2026.09.12.134826626';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -1985,6 +1985,7 @@ function connectToHost(hostId) {
 }
 
 function resetJoystickPosition() {
+  joystick.classList.remove('is-active');
   joystick.style.left = '28px';
   joystick.style.top = 'auto';
   joystick.style.bottom = '24px';
@@ -2059,6 +2060,7 @@ window.addEventListener('pointerdown', (event) => {
   if (joystickInput.active && joystickInput.pointerId !== null && event.pointerId !== joystickInput.pointerId) return;
   joystickInput.active = true;
   joystickInput.pointerId = event.pointerId;
+  joystick.classList.add('is-active');
   moveJoystickTo(event.clientX, event.clientY);
   setJoystick(event);
 }, { passive: true });

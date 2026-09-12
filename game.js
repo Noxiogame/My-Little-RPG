@@ -1720,7 +1720,12 @@ function createPeer() {
   closeAllConnections();
   peer = new Peer(hostId);
   peer.on('open', () => { isHost = true; reconnectAttempts = 0; });
-  peer.on('connection', (connection) => { wireConnection(connection); connection.on('open', () => connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] })); });
+  // NOTE: the initial snapshot is now sent from the 'hello' handler in receive(),
+  // only after the joining peer's version has been confirmed to match. Sending it
+  // here (immediately on connection open) let mismatched-version peers glimpse
+  // each other for exactly one frame before the version check closed the
+  // connection, which is why some players only ever saw a single frozen frame.
+  peer.on('connection', (connection) => { wireConnection(connection); });
   peer.on('disconnected', () => {
     if (versionMismatchTriggered) return;
     try { peer.reconnect(); } catch { scheduleReconnect(); }

@@ -1,31 +1,31 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#101b1a" />
-    <meta name="app-version" content="2026.09.12.093000" />
+    <meta name="app-version" content="2026.09.12.083355823" />
     <title>La Prairie</title>
-    <link rel="stylesheet" href="style.css?v=2026.09.12.093000" />
+    <link rel="stylesheet" href="style.css?v=2026.09.12.083355823" />
   </head>
   <body>
     <main class="game-shell">
       <canvas id="game" aria-label="Prairie de Noelle"></canvas>
       <div id="screen-fade" class="screen-fade" aria-hidden="true"></div>
       <div id="speech-bubbles" class="speech-bubbles" aria-live="polite"></div>
-      <button id="egg-reward" class="egg-reward" type="button" aria-label="Ouvrir l'oeuf de récompense" title="Oeuf de récompense">
-        <img src="Tilesets/pipis.png" alt="Oeuf de récompense" />
+      <button id="egg-reward" class="egg-reward" type="button" aria-label="Ouvrir l'oeuf de rÃ©compense" title="Oeuf de rÃ©compense">
+        <img src="Tilesets/pipis.png" alt="Oeuf de rÃ©compense" />
       </button>
       <div id="egg-cooldown" class="egg-cooldown" aria-live="polite">Disponible</div>
-      <div class="coin-wallet" aria-live="polite" title="Pièces gagnées avec les Pipis">
-        <span class="coin-icon">¢</span>
+      <div class="coin-wallet" aria-live="polite" title="PiÃ¨ces gagnÃ©es avec les Pipis">
+        <span class="coin-icon">Â¢</span>
         <span id="coin-amount">0</span>
       </div>
-      <section id="egg-modal" class="egg-modal" aria-label="Oeuf de récompense" hidden>
+      <section id="egg-modal" class="egg-modal" aria-label="Oeuf de rÃ©compense" hidden>
         <div class="egg-modal-backdrop"></div>
         <div class="egg-card" role="dialog" aria-modal="true" aria-labelledby="egg-title">
-          <button id="egg-close" class="egg-close" type="button" aria-label="Fermer">×</button>
-          <p class="egg-label">Récompense mystérieuse</p>
+          <button id="egg-close" class="egg-close" type="button" aria-label="Fermer">Ã—</button>
+          <p class="egg-label">RÃ©compense mystÃ©rieuse</p>
           <h2 id="egg-title">L'oeuf de Pipis</h2>
           <div class="egg-stage">
             <img id="egg-image" class="egg-image" src="Tilesets/pipis.png" alt="Oeuf en cours de casse, cliquer pour frapper" role="button" tabindex="0" />
@@ -37,16 +37,16 @@
           <p id="egg-result" class="egg-result" aria-live="polite"></p>
         </div>
       </section>
-      <section id="skin-modal" class="skin-modal" aria-label="Bibliothèque de skins" hidden>
+      <section id="skin-modal" class="skin-modal" aria-label="BibliothÃ¨que de skins" hidden>
         <div class="skin-modal-backdrop"></div>
         <div class="skin-card" role="dialog" aria-modal="true" aria-labelledby="skin-title">
-          <button id="skin-close" class="egg-close" type="button" aria-label="Fermer">×</button>
+          <button id="skin-close" class="egg-close" type="button" aria-label="Fermer">Ã—</button>
           <p class="egg-label">Collection personnelle</p>
           <div class="skin-header">
-            <h2 id="skin-title">Bibliothèque de skins</h2>
-            <div class="skin-wallet" title="Pièces disponibles"><span class="coin-icon">¢</span><span id="skin-coin-amount">0</span></div>
+            <h2 id="skin-title">BibliothÃ¨que de skins</h2>
+            <div class="skin-wallet" title="PiÃ¨ces disponibles"><span class="coin-icon">Â¢</span><span id="skin-coin-amount">0</span></div>
           </div>
-          <p class="skin-intro">Achète puis équipe ton personnage préféré.</p>
+          <p class="skin-intro">AchÃ¨te puis Ã©quipe ton personnage prÃ©fÃ©rÃ©.</p>
           <div id="skin-list" class="skin-list"></div>
           <p id="skin-result" class="skin-result" aria-live="polite"></p>
         </div>
@@ -54,7 +54,7 @@
 
       <header class="hud">
         <div id="app-version-badge" class="app-version-badge" aria-live="polite">v2026.09.12.093000</div>
-        <button id="reload-button" class="icon-button reload-button" type="button" aria-label="Réactualiser le jeu" title="Réactualiser">↻</button>
+        <button id="reload-button" class="icon-button reload-button" type="button" aria-label="RÃ©actualiser le jeu" title="RÃ©actualiser">â†»</button>
         <button id="chat-toggle" class="icon-button chat-toggle" type="button" aria-label="Ouvrir le tchat" title="Tchat" aria-expanded="false">
           <span class="chat-icon" aria-hidden="true"></span>
         </button>
@@ -70,29 +70,29 @@
           <span class="chat-live"><span></span> direct</span>
         </div>
         <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Messages du tchat">
-          <p class="chat-empty" id="chat-empty">Les messages apparaîtront ici.</p>
+          <p class="chat-empty" id="chat-empty">Les messages apparaÃ®tront ici.</p>
         </div>
         <form id="chat-form" class="chat-form">
-          <input id="chat-input" maxlength="180" autocomplete="off" placeholder="Écrire un message..." aria-label="Message" />
+          <input id="chat-input" maxlength="180" autocomplete="off" placeholder="Ã‰crire un message..." aria-label="Message" />
           <button type="submit" aria-label="Envoyer le message">Envoyer</button>
         </form>
       </section>
 
-      <div class="hint"><span class="key">ZQSD</span> ou joystick pour se déplacer</div>
-      <div id="joystick" class="joystick" aria-label="Joystick de déplacement">
+      <div class="hint"><span class="key">ZQSD</span> ou joystick pour se dÃ©placer</div>
+      <div id="joystick" class="joystick" aria-label="Joystick de dÃ©placement">
         <div class="joystick-ring"><div id="stick" class="joystick-stick"></div></div>
       </div>
     </main>
 
     <section id="main-menu" class="main-menu" aria-label="Menu principal" hidden>
       <div class="main-menu-card">
-        <button id="close-auth" class="main-menu-close" type="button" aria-label="Fermer le menu d’authentification">×</button>
+        <button id="close-auth" class="main-menu-close" type="button" aria-label="Fermer le menu dâ€™authentification">Ã—</button>
         <h2>Bienvenue dans la prairie</h2>
-        <p class="menu-copy">Connectez-vous pour retrouver vos pièces et votre bibliothèque de skins.</p>
+        <p class="menu-copy">Connectez-vous pour retrouver vos piÃ¨ces et votre bibliothÃ¨que de skins.</p>
         <div id="auth-choice" class="auth-choice">
           <button id="show-login" class="menu-primary" type="button">Se connecter</button>
-          <button id="show-create" class="menu-secondary" type="button">Créer un compte</button>
-          <button id="open-menu-skins" class="menu-ghost" type="button">Accéder à la bibliothèque de skins</button>
+          <button id="show-create" class="menu-secondary" type="button">CrÃ©er un compte</button>
+          <button id="open-menu-skins" class="menu-ghost" type="button">AccÃ©der Ã  la bibliothÃ¨que de skins</button>
         </div>
         <div id="auth-form" class="auth-form" hidden>
           <p id="auth-form-title" class="auth-form-title">Se connecter</p>
@@ -101,7 +101,7 @@
           <input id="new-account-name" class="account-field" maxlength="18" autocomplete="nickname" placeholder="Pseudo" aria-label="Pseudo" hidden />
           <div class="auth-actions">
             <button id="login-account" class="menu-primary" type="button">Se connecter</button>
-            <button id="create-account" class="menu-primary" type="button" hidden>Créer le compte</button>
+            <button id="create-account" class="menu-primary" type="button" hidden>CrÃ©er le compte</button>
             <button id="back-auth" class="menu-secondary" type="button">Retour</button>
           </div>
         </div>
@@ -112,19 +112,19 @@
     <section id="account-modal" class="account-modal" aria-label="Compte" hidden>
       <div class="account-modal-backdrop"></div>
       <div class="account-card" role="dialog" aria-modal="true" aria-labelledby="account-title">
-        <button id="account-close" class="egg-close" type="button" aria-label="Fermer">×</button>
+        <button id="account-close" class="egg-close" type="button" aria-label="Fermer">Ã—</button>
         <p class="egg-label">Profil local</p>
         <h2 id="account-title"><span id="account-modal-name">Compte</span></h2>
-        <p class="account-balance"><span class="coin-icon">¢</span> <span id="account-coins">0</span> pièces</p>
+        <p class="account-balance"><span class="coin-icon">Â¢</span> <span id="account-coins">0</span> piÃ¨ces</p>
         <input id="account-nickname" class="account-field" maxlength="18" autocomplete="nickname" placeholder="Pseudo" aria-label="Pseudo" />
         <button id="save-nickname" class="menu-secondary" type="button">Enregistrer le pseudo</button>
-        <button id="account-skins" class="menu-primary" type="button">Ouvrir la bibliothèque de skins</button>
-        <button id="account-logout" class="menu-secondary" type="button">Se déconnecter</button>
+        <button id="account-skins" class="menu-primary" type="button">Ouvrir la bibliothÃ¨que de skins</button>
+        <button id="account-logout" class="menu-secondary" type="button">Se dÃ©connecter</button>
       </div>
     </section>
 
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script src="game.js?v=2026.09.12.093000"></script>
+    <script src="game.js?v=2026.09.12.083355823"></script>
   </body>
 </html>

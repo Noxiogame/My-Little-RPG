@@ -1,7 +1,7 @@
-const canvas = document.querySelector('#game');
+﻿const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.093000';
+const APP_VERSION = '2026.09.12.083355823';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -106,7 +106,7 @@ function reloadGameSafely() {
   window.location.replace(buildReloadUrl(APP_VERSION));
 }
 
-function forceVersionReload(version = APP_VERSION, reason = 'Une mise à jour du jeu est disponible.') {
+function forceVersionReload(version = APP_VERSION, reason = 'Une mise Ã  jour du jeu est disponible.') {
   if (versionMismatchTriggered) return;
   if (sessionStorage.getItem(VERSION_RELOAD_KEY) === version) return;
   versionMismatchTriggered = true;
@@ -145,9 +145,9 @@ async function checkForGameVersion() {
 
     if (version !== APP_VERSION) {
       console.warn(`Old game version detected: ${APP_VERSION} -> ${version}. Reloading...`);
-      addChatMessage('Une nouvelle version du jeu est disponible. Recharge en cours…', 'Prairie');
+      addChatMessage('Une nouvelle version du jeu est disponible. Recharge en coursâ€¦', 'Prairie');
       // Jitter avoids every connected client reloading (and dropping the P2P mesh) at the exact same instant.
-      setTimeout(() => forceVersionReload(version, 'Version du jeu obsolète.'), 1500 + Math.random() * 4000);
+      setTimeout(() => forceVersionReload(version, 'Version du jeu obsolÃ¨te.'), 1500 + Math.random() * 4000);
     }
   } catch (error) {
     console.warn('Impossible de verifier la version du jeu.', error);
@@ -156,8 +156,8 @@ async function checkForGameVersion() {
 
 function handleVersionMismatch(remoteVersion, source = 'remote') {
   const message = source === 'peer'
-    ? 'Un autre joueur utilise une version différente. La session continue sans lui.'
-    : `Version du jeu différente (${APP_VERSION} vs ${remoteVersion}).`;
+    ? 'Un autre joueur utilise une version diffÃ©rente. La session continue sans lui.'
+    : `Version du jeu diffÃ©rente (${APP_VERSION} vs ${remoteVersion}).`;
   addChatMessage(message, 'Prairie');
   if (source === 'remote') {
     setTimeout(() => reloadGameSafely(), 1200);
@@ -167,7 +167,7 @@ function handleVersionMismatch(remoteVersion, source = 'remote') {
 function sendVersionAwareReload() {
   if (connections.size > 0 || hostConnection) {
     closeAllConnections();
-    addChatMessage('Déconnexion de la prairie pour actualiser proprement le jeu…', 'Prairie');
+    addChatMessage('DÃ©connexion de la prairie pour actualiser proprement le jeuâ€¦', 'Prairie');
   }
   reloadGameSafely();
 }
@@ -346,7 +346,7 @@ const eggRarities = [
   { key: 'commun', label: 'Commun', color: '#cfd8cd' },
   { key: 'non-commun', label: 'Non commun', color: '#b9e7b1' },
   { key: 'rare', label: 'Rare', color: '#8ec9ff' },
-  { key: 'legendaire', label: 'Légendaire', color: '#ffd68c' },
+  { key: 'legendaire', label: 'LÃ©gendaire', color: '#ffd68c' },
 ];
 const eggRewards = [8, 15, 24, 36, 52, 73, 100, 135, 180, 240, 340, 500];
 const eggBreakChance = .3;
@@ -367,26 +367,26 @@ const skins = [
   { id: 'frisk', label: 'Frisk', rarity: 'Rare', price: 220 },
   { id: 'villager', label: 'Villageois', rarity: 'Non commun', price: 90 },
   { id: 'temmie', label: 'Temmie', rarity: 'Rare', price: 120 },
-  { id: 'spamton', label: 'Spamton', rarity: 'Légendaire', price: 450 },
-  { id: 'asgore', label: 'Asgore', rarity: 'Légendaire', price: 350 },
-  { id: 'jevil', label: 'Jevil', rarity: 'Légendaire', price: 450 },
+  { id: 'spamton', label: 'Spamton', rarity: 'LÃ©gendaire', price: 450 },
+  { id: 'asgore', label: 'Asgore', rarity: 'LÃ©gendaire', price: 350 },
+  { id: 'jevil', label: 'Jevil', rarity: 'LÃ©gendaire', price: 450 },
   { id: 'papyrus', label: 'Papyrus', rarity: 'Rare', price: 180 },
   { id: 'sans', label: 'Sans', rarity: 'Rare', price: 180 },
   { id: 'undyne', label: 'Undyne', rarity: 'Rare', price: 180 },
   { id: 'foxy', label: 'Foxy', rarity: 'Rare', price: 150 },
-  { id: 'pikachu', label: 'Pikachu', rarity: 'Légendaire', price: 400 },
+  { id: 'pikachu', label: 'Pikachu', rarity: 'LÃ©gendaire', price: 400 },
   { id: 'puppet', label: 'Puppet', rarity: 'Rare', price: 250 },
-  { id: 'nightmare-fredbear', label: 'Nightmare Fredbear', rarity: 'Légendaire', price: 550 },
-  { id: 'springtrap', label: 'Springtrap', rarity: 'Légendaire', price: 620 },
-  { id: 'nightmarionne', label: 'Nightmarionne', rarity: 'Légendaire', price: 680 },
-  { id: 'funtime-freddy', label: 'Funtime Freddy', rarity: 'Légendaire', price: 610 },
+  { id: 'nightmare-fredbear', label: 'Nightmare Fredbear', rarity: 'LÃ©gendaire', price: 550 },
+  { id: 'springtrap', label: 'Springtrap', rarity: 'LÃ©gendaire', price: 620 },
+  { id: 'nightmarionne', label: 'Nightmarionne', rarity: 'LÃ©gendaire', price: 680 },
+  { id: 'funtime-freddy', label: 'Funtime Freddy', rarity: 'LÃ©gendaire', price: 610 },
   { id: 'steve', label: 'Steve', rarity: 'Rare', price: 260 },
   { id: 'balloon-boy', label: 'Balloon Boy', rarity: 'Rare', price: 280 },
   { id: 'el-chip', label: 'El Chip', rarity: 'Rare', price: 300 },
-  { id: 'lefty', label: 'Lefty', rarity: 'Légendaire', price: 700 },
+  { id: 'lefty', label: 'Lefty', rarity: 'LÃ©gendaire', price: 700 },
   { id: 'toy-bonnie', label: 'Toy Bonnie', rarity: 'Rare', price: 320 },
-  { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
-  { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
+  { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'LÃ©gendaire', price: 520 },
+  { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'LÃ©gendaire', price: 500 },
 ];
 const sessionStorageKey = 'noelle-meadow-session-v1';
 const accountsStorageKey = 'noelle-meadow-accounts-v1';
@@ -439,12 +439,12 @@ function authEmail(identifier) {
 
 function showAuthError(error) {
   const message = `${error?.code || ''} ${error?.message || ''}`.toLowerCase();
-  if (message.includes('already registered') || message.includes('already exists') || message.includes('duplicate')) return 'Cet identifiant est déjà utilisé.';
+  if (message.includes('already registered') || message.includes('already exists') || message.includes('duplicate')) return 'Cet identifiant est dÃ©jÃ  utilisÃ©.';
   if (message.includes('invalid login') || message.includes('invalid credentials') || message.includes('invalid')) return 'Identifiant ou mot de passe incorrect.';
-  if (message.includes('email not confirmed') || message.includes('not confirmed')) return 'Ce compte n’est pas encore activé. Réessayez après l’activation du service de comptes.';
-  if (message.includes('password') && (message.includes('short') || message.includes('least'))) return 'Le mot de passe doit contenir au moins 8 caractères.';
-  if (message.includes('rate limit') || message.includes('too many')) return 'Trop de tentatives. Patientez un instant avant de réessayer.';
-  return 'Impossible de terminer cette action. Vérifiez vos informations et réessayez.';
+  if (message.includes('email not confirmed') || message.includes('not confirmed')) return 'Ce compte nâ€™est pas encore activÃ©. RÃ©essayez aprÃ¨s lâ€™activation du service de comptes.';
+  if (message.includes('password') && (message.includes('short') || message.includes('least'))) return 'Le mot de passe doit contenir au moins 8 caractÃ¨res.';
+  if (message.includes('rate limit') || message.includes('too many')) return 'Trop de tentatives. Patientez un instant avant de rÃ©essayer.';
+  return 'Impossible de terminer cette action. VÃ©rifiez vos informations et rÃ©essayez.';
 }
 
 async function releaseAuthSession(message = '') {
@@ -471,7 +471,7 @@ async function claimAuthSession(userId) {
   authPresenceChannel = authClient.channel(channelName, { config: { presence: { key: authSessionId } } });
   authPresenceChannel.on('broadcast', { event: 'claim' }, ({ payload }) => {
     if (payload?.sessionId && payload.sessionId !== authSessionId && payload.sessionId < authSessionId) {
-      releaseAuthSession('Ce compte est déjà ouvert sur un autre appareil.');
+      releaseAuthSession('Ce compte est dÃ©jÃ  ouvert sur un autre appareil.');
     }
   });
   const subscribeStatus = await new Promise((resolve) => {
@@ -485,7 +485,7 @@ async function claimAuthSession(userId) {
   const existingSessions = Object.keys(authPresenceChannel.presenceState()).filter((key) => key !== authSessionId);
   const winner = [authSessionId, ...existingSessions].sort()[0];
   if (winner !== authSessionId) {
-    await releaseAuthSession('Ce compte est déjà ouvert sur un autre appareil.');
+    await releaseAuthSession('Ce compte est dÃ©jÃ  ouvert sur un autre appareil.');
     return false;
   }
   await authPresenceChannel.track({ sessionId: authSessionId, joinedAt: Date.now() });
@@ -526,7 +526,7 @@ async function saveRemoteSession() {
 }
 
 function updateAccountUi() {
-  accountName.textContent = isAuthenticated ? session.accountName : 'Invité';
+  accountName.textContent = isAuthenticated ? session.accountName : 'InvitÃ©';
   accountModalName.textContent = session.accountName;
   accountCoins.textContent = session.coins;
   accountNickname.value = session.nickname;
@@ -543,7 +543,7 @@ function showAuthForm(mode) {
   const creating = mode === 'create';
   authChoice.hidden = true;
   authForm.hidden = false;
-  authFormTitle.textContent = creating ? 'Créer un compte' : 'Se connecter';
+  authFormTitle.textContent = creating ? 'CrÃ©er un compte' : 'Se connecter';
   loginAccount.hidden = creating;
   createAccount.hidden = !creating;
   newAccountName.hidden = !creating;
@@ -566,12 +566,12 @@ function closeAuthWindow() {
 function createLocalAccount() {
   const name = newAccountName.value.trim().replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 18);
   if (name.length < 2) {
-    menuMessage.textContent = 'Choisissez un nom de 2 caractères minimum.';
+    menuMessage.textContent = 'Choisissez un nom de 2 caractÃ¨res minimum.';
     return;
   }
   const accounts = JSON.parse(localStorage.getItem(accountsStorageKey) || '{}');
   if (accounts[name]) {
-    menuMessage.textContent = 'Ce compte existe déjà.';
+    menuMessage.textContent = 'Ce compte existe dÃ©jÃ .';
     return;
   }
   accounts[name] = { coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
@@ -631,7 +631,7 @@ async function signInAccount() {
   const identifier = loginIdentifier.value.trim();
   const password = loginPassword.value;
   if (!identifier || password.length < 8) {
-    menuMessage.textContent = 'Identifiant et mot de passe de 8 caractères minimum requis.';
+    menuMessage.textContent = 'Identifiant et mot de passe de 8 caractÃ¨res minimum requis.';
     return;
   }
   loginAccount.disabled = true;
@@ -668,7 +668,7 @@ async function createRemoteAccount() {
       updateAccountUi();
     }
   } else {
-    menuMessage.textContent = 'Compte créé. Connectez-vous avec votre identifiant.';
+    menuMessage.textContent = 'Compte crÃ©Ã©. Connectez-vous avec votre identifiant.';
   }
   createAccount.disabled = false;
 }
@@ -820,22 +820,22 @@ function breakEgg() {
   saveSession();
   updateRewardUi();
   eggImage.src = eggTextures.broken;
-  eggImage.alt = 'Oeuf brisé';
+  eggImage.alt = 'Oeuf brisÃ©';
   eggImage.setAttribute('aria-disabled', 'true');
-  eggResult.innerHTML = `<span class="egg-rarity-badge" data-rarity="${rarity.key}">${rarity.label}</span>Pipis gagnés : +${reward} pièces`;
+  eggResult.innerHTML = `<span class="egg-rarity-badge" data-rarity="${rarity.key}">${rarity.label}</span>Pipis gagnÃ©s : +${reward} piÃ¨ces`;
   shakeEggCard();
   flashEggGlow(hexToRgba(rarity.color, .55));
   spawnEggParticles(rarity.color, rarity.key === 'legendaire' ? 22 : 14, rarity.key === 'legendaire' ? 90 : 60);
-  showFloatingReward(`+${reward} ¢`, rarity.color);
+  showFloatingReward(`+${reward} Â¢`, rarity.color);
   eggCard?.classList.add('is-celebrating');
   eggCard?.style.setProperty('--rarity-glow', hexToRgba(rarity.color, .45));
   setTimeout(() => {
     if (!eggState.open) return;
     eggImage.src = eggTextures.left;
-    eggImage.alt = 'Moitié gauche de l’oeuf brisé';
+    eggImage.alt = 'MoitiÃ© gauche de lâ€™oeuf brisÃ©';
     eggImage.classList.add('egg-half-left');
     eggShard.src = eggTextures.right;
-    eggShard.alt = 'Moitié droite de l’oeuf brisé';
+    eggShard.alt = 'MoitiÃ© droite de lâ€™oeuf brisÃ©';
     eggShard.hidden = false;
     eggShard.className = 'egg-shard is-visible egg-half-right';
   }, 420);
@@ -866,12 +866,12 @@ function hitEgg() {
     flashEggGlow(hexToRgba(rarity.color, .35));
   }
   if (eggState.hits === 12) {
-    eggResult.textContent = `Dernier niveau ! Potentiel : +${reward} pièces`;
+    eggResult.textContent = `Dernier niveau ! Potentiel : +${reward} piÃ¨ces`;
     breakEgg();
     return;
   }
   if (Math.random() < eggBreakChance) breakEgg();
-  else eggResult.textContent = `Gain potentiel : +${reward} pièces`;
+  else eggResult.textContent = `Gain potentiel : +${reward} piÃ¨ces`;
 }
 
 function getPlayerAnimationOffset(playerId = '') {
@@ -1085,7 +1085,7 @@ function drawInterior() {
   context.fillStyle = 'rgba(247,241,222,.35)';
   context.font = '11px DM Mono, monospace';
   context.textAlign = 'left';
-  context.fillText('Intérieur — sors par le bas', 30, height - 30);
+  context.fillText('IntÃ©rieur â€” sors par le bas', 30, height - 30);
 }
 
 function createWorldMap() {
@@ -1561,7 +1561,7 @@ function renderSkinLibrary() {
     const action = document.createElement('button');
     action.type = 'button';
     action.className = 'skin-action';
-    action.textContent = equipped ? 'Équipé' : owned ? 'Équiper' : `${skin.price} ¢`;
+    action.textContent = equipped ? 'Ã‰quipÃ©' : owned ? 'Ã‰quiper' : `${skin.price} Â¢`;
     item.classList.toggle('is-affordable', !owned && !equipped && session.coins >= skin.price);
     item.classList.toggle('is-unaffordable', !owned && !equipped && session.coins < skin.price);
     action.disabled = equipped;
@@ -1574,7 +1574,7 @@ function renderSkinLibrary() {
 function chooseSkin(skin) {
   if (!session.ownedSkins.includes(skin.id)) {
     if (session.coins < skin.price) {
-      skinResult.textContent = `Il te manque ${skin.price - session.coins} pièce${skin.price - session.coins > 1 ? 's' : ''}.`;
+      skinResult.textContent = `Il te manque ${skin.price - session.coins} piÃ¨ce${skin.price - session.coins > 1 ? 's' : ''}.`;
       return;
     }
     session.coins -= skin.price;
@@ -1586,7 +1586,7 @@ function chooseSkin(skin) {
   saveSession();
   updateRewardUi();
   renderSkinLibrary();
-  skinResult.textContent = `${skin.label} est maintenant équipé.`;
+  skinResult.textContent = `${skin.label} est maintenant Ã©quipÃ©.`;
   sendState();
 }
 
@@ -1615,7 +1615,7 @@ function receive(connection, payload) {
   if (!payload || !payload.type) return;
 
   if (payload.type === 'version-mismatch') {
-    addChatMessage('Un autre joueur a une version différente. Sa session est temporairement ignorée.', 'Prairie');
+    addChatMessage('Un autre joueur a une version diffÃ©rente. Sa session est temporairement ignorÃ©e.', 'Prairie');
     closeConnection(connection, true);
     return;
   }
@@ -1645,7 +1645,7 @@ function receive(connection, payload) {
     const remoteVersion = payload.version || 'unknown';
     if (remoteVersion !== APP_VERSION) {
       connection.send({ type: 'version-mismatch', version: APP_VERSION });
-      addChatMessage('Version incompatible détectée. Ce joueur ne rejoint pas la prairie.', 'Prairie');
+      addChatMessage('Version incompatible dÃ©tectÃ©e. Ce joueur ne rejoint pas la prairie.', 'Prairie');
       closeConnection(connection, true);
       return;
     }
@@ -1695,7 +1695,7 @@ function wireConnection(connection) {
     else if (connection === hostConnection) {
       remotePlayers.clear();
       if (!versionMismatchTriggered) {
-        addChatMessage('Connexion à la prairie perdue. Tentative de reconnexion…', 'Prairie');
+        addChatMessage('Connexion Ã  la prairie perdue. Tentative de reconnexionâ€¦', 'Prairie');
         scheduleReconnect(true);
       }
     }
@@ -1930,3 +1930,4 @@ mainMenu.hidden = true;
 checkForGameVersion();
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });
+

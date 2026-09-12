@@ -24,8 +24,27 @@ if errorlevel 1 (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$version = '%APP_VERSION%'; $game = (Get-Content -Path 'game.js' -Raw); $game = [regex]::Replace($game, \"const APP_VERSION = '.*?'\", \"const APP_VERSION = '$version'\"); Set-Content -Path 'game.js' -Value $game -Encoding UTF8; $html = (Get-Content -Path 'index.html' -Raw); $html = [regex]::Replace($html, '<meta name=\"app-version\" content=\"[^\"]+\" />', '<meta name=\"app-version\" content=\"' + $version + '\" />'); $html = [regex]::Replace($html, 'style\.css\?v=[^\"]+', 'style.css?v=' + $version); $html = [regex]::Replace($html, 'game\.js\?v=[^\"]+', 'game.js?v=' + $version); Set-Content -Path 'index.html' -Value $html -Encoding UTF8; $json = '{\"version\": \"' + $version + '\"}'; Set-Content -Path 'version.json' -Value $json -Encoding UTF8"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update-version.ps1" -Version "%APP_VERSION%"
 if errorlevel 1 goto :failed
+
+rem Sanity check: fail loudly instead of silently committing only some of the
+rem files if a future regex tweak stops matching one of them (this is exactly
+rem what happened before: game.js updated fine, index.html/version.json didn't).
+findstr /C:"%APP_VERSION%" game.js >nul
+if errorlevel 1 (
+  echo ERREUR : game.js ne contient pas la nouvelle version %APP_VERSION%.
+  goto :failed
+)
+findstr /C:"%APP_VERSION%" index.html >nul
+if errorlevel 1 (
+  echo ERREUR : index.html ne contient pas la nouvelle version %APP_VERSION%.
+  goto :failed
+)
+findstr /C:"%APP_VERSION%" version.json >nul
+if errorlevel 1 (
+  echo ERREUR : version.json ne contient pas la nouvelle version %APP_VERSION%.
+  goto :failed
+)
 
 "%GIT%" add -A
 "%GIT%" diff --cached --quiet

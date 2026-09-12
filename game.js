@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.223516110';
+const APP_VERSION = '2026.09.13.012534422';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -275,11 +275,15 @@ const skinPaths = {
   lefty: { folder: 'Characters/Lefty', prefix: 'lefty' },
   'toy-bonnie': { folder: 'Characters/ToyBonnie', prefix: 'toy_bonnie' },
   'withered-bonnie': { folder: 'Characters/WitheredBonnie', prefix: 'withered_bonnie' },
+  'withered-chica': { folder: 'Characters/WitheredChica', prefix: 'withered_chica' },
+  'withered-foxy': { folder: 'Characters/WitheredFoxy', prefix: 'withered_foxy' },
+  'withered-freddy': { folder: 'Characters/WitheredFreddy', prefix: 'withered_freddy' },
   freddy: { folder: 'Characters/Freddy', prefix: 'freddy' },
   bonnie: { folder: 'Characters/Bonnie', prefix: 'bonnie' },
   chica: { folder: 'Characters/Chica', prefix: 'chica' },
   villager: { folder: 'Characters/Villageois', prefix: 'villager' },
   'rouxls-kaard': { folder: 'Characters/Rouxls', prefix: 'rouxls_kaard' },
+  'mr-hippo': { folder: 'Characters/MrHippo', prefix: 'mr_hippo' },
 };
 
 const characterSprites = Object.fromEntries(
@@ -297,6 +301,7 @@ const spriteFrameCountOverrides = {
   villager: { left: 0, right: 0, side: 4 },
   freddy: { left: 0, right: 0, side: 4 },
   chica: { left: 0, right: 0, side: 4 },
+  'mr-hippo': { left: 0, right: 0, side: 4 },
 };
 const characterEmotes = {
   jevil: {
@@ -619,14 +624,18 @@ const skins = [
   { id: 'lefty', label: 'Lefty', rarity: 'Légendaire', price: 700 },
   { id: 'toy-bonnie', label: 'Toy Bonnie', rarity: 'Rare', price: 320 },
   { id: 'withered-bonnie', label: 'Withered Bonnie', rarity: 'Légendaire', price: 520 },
+  { id: 'withered-chica', label: 'Withered Chica', rarity: 'Légendaire', price: 540 },
+  { id: 'withered-foxy', label: 'Withered Foxy', rarity: 'Légendaire', price: 580 },
+  { id: 'withered-freddy', label: 'Withered Freddy', rarity: 'Légendaire', price: 600 },
   { id: 'freddy', label: 'Freddy', rarity: 'Rare', price: 340 },
   { id: 'bonnie', label: 'Bonnie', rarity: 'Rare', price: 340 },
   { id: 'chica', label: 'Chica', rarity: 'Rare', price: 340 },
   { id: 'rouxls-kaard', label: 'Rouxls Kaard', rarity: 'Légendaire', price: 500 },
+  { id: 'mr-hippo', label: 'Mr Hippo', rarity: 'Légendaire', price: 560 },
 ];
 const skinLicenses = [
   { id: 'undertale', label: 'Undertale', description: 'Ruines et monstres souterrains', texture: 'Tilesets/Interiors/ruins.png', character: 'sans', skinIds: ['frisk', 'temmie', 'papyrus', 'sans', 'undyne'] },
-  { id: 'fnaf', label: 'Five Nights at Freddy’s', description: 'Animatroniques dans la nuit', texture: 'Tilesets/Interiors/checkered_floor.png', character: 'foxy', skinIds: ['foxy', 'puppet', 'nightmare-fredbear', 'springtrap', 'nightmarionne', 'funtime-freddy', 'balloon-boy', 'el-chip', 'lefty', 'toy-bonnie', 'withered-bonnie', 'freddy', 'bonnie', 'chica'] },
+  { id: 'fnaf', label: 'Five Nights at Freddy’s', description: 'Animatroniques dans la nuit', texture: 'Tilesets/Interiors/checkered_floor.png', character: 'foxy', skinIds: ['foxy', 'puppet', 'nightmare-fredbear', 'springtrap', 'nightmarionne', 'funtime-freddy', 'balloon-boy', 'el-chip', 'lefty', 'toy-bonnie', 'withered-bonnie', 'withered-chica', 'withered-foxy', 'withered-freddy', 'freddy', 'bonnie', 'chica', 'mr-hippo'] },
   { id: 'deltarune', label: 'Deltarune', description: 'Un monde entre lumière et ténèbres', texture: 'Tilesets/Interiors/floor.png', character: 'noelle', skinIds: ['noelle', 'noelle-alt', 'spamton', 'asgore', 'jevil', 'rouxls-kaard'] },
   { id: 'other', label: 'Autres', description: 'Personnages venus d’ailleurs', texture: 'Tilesets/Interiors/missing.png', character: 'pikachu', skinIds: ['red-crewmate', 'villager', 'pikachu', 'steve'] },
 ];

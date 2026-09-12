@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.144921683';
+const APP_VERSION = '2026.09.12.145423456';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -1070,6 +1070,24 @@ function broadcastCarEvent(action) {
   else if (hostConnection?.open) hostConnection.send(payload);
 }
 
+function getCarState() {
+  return {
+    id: car.id,
+    x: car.x,
+    y: car.y,
+    direction: car.direction,
+    driverId: car.driverId,
+  };
+}
+
+function applyCarState(state) {
+  if (!state || state.id !== car.id) return;
+  if (Number.isFinite(state.x)) car.x = state.x;
+  if (Number.isFinite(state.y)) car.y = state.y;
+  if (state.direction) car.direction = state.direction;
+  car.driverId = state.driverId || null;
+}
+
 function applyCarEvent(payload) {
   if (!payload?.playerId || payload.playerId === localPlayer.id) return;
   if (payload.action === 'enter') {
@@ -2036,7 +2054,7 @@ function receive(connection, payload) {
         const isSamePlayer = [...remotePlayers.values()].some((player) => player.id === payload.player.id && player.peerId === peerId);
         if (isSamePlayer) closeConnection(existingConnection, true);
       });
-      connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer] });
+      connection.send({ type: 'snapshot', players: [...remotePlayers.values(), localPlayer], car: getCarState() });
       broadcast({ type: 'state', player: localPlayer }, connection.peer);
       announcePresence('join', payload.player.id, connection.peer);
     }
@@ -2061,6 +2079,7 @@ function receive(connection, payload) {
     if (isHost) broadcast(payload, connection.peer);
   }
   if (payload.type === 'snapshot') {
+    applyCarState(payload.car);
     // Reconciliation par diff plutot que clear()+rebuild : un clear() brutal
     // faisait disparaitre puis reapparaitre tout le monde a chaque snapshot
     // (ex: apres une migration de host), ce qui donnait l'impression fausse

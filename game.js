@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.143127362';
+const APP_VERSION = '2026.09.12.144921683';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -79,6 +79,9 @@ const MIN_CAMERA_ZOOM = .75;
 const MAX_CAMERA_ZOOM = 4;
 let cameraZoom = 1.35;
 const PLAYER_SPEED = 100;
+const CAR_SPEED_MULTIPLIER = 2.2;
+const CAR_ENTER_RADIUS = 46;
+const CAR_CLICK_RADIUS = 26;
 const CHARACTER_SPRITE_FOOT_OFFSET = 6;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
@@ -181,7 +184,7 @@ function loadTileTexture(type, mask, variation = '') {
   const folder = type === 'grass' ? 'Grass' : type === 'sidewalk' ? '' : 'Road';
   const fileName = type === 'sidewalk' ? `sidewalk${mask}${variation}.png` : `${type}${separator}${mask}${variation}.png`;
   image.src = type === 'grass' || type === 'road' ? `Tilesets/${folder}/${fileName}` : `${fileName}`;
-  image.addEventListener('load', () => requestAnimationFrame(draw));
+  image.addEventListener('load', () => { invalidateTerrainCache(); requestAnimationFrame(draw); });
   return image;
 }
 
@@ -199,10 +202,10 @@ SIDEWALK_TEXTURE_NAMES.forEach((mask) => {
 });
 const roadFallback = new Image();
 roadFallback.src = 'Tilesets/Road/road.png';
-roadFallback.addEventListener('load', () => requestAnimationFrame(draw));
+roadFallback.addEventListener('load', () => { invalidateTerrainCache(); requestAnimationFrame(draw); });
 roadTrackTextures.horizontal.src = 'Tilesets/Road/road_track_horizontal.png';
 roadTrackTextures.vertical.src = 'Tilesets/Road/road_track_vertical.png';
-Object.values(roadTrackTextures).forEach((image) => image.addEventListener('load', () => requestAnimationFrame(draw)));
+Object.values(roadTrackTextures).forEach((image) => image.addEventListener('load', () => { invalidateTerrainCache(); requestAnimationFrame(draw); }));
 const loadAssetImage = (src) => {
   const image = new Image();
   image.src = src;
@@ -967,7 +970,7 @@ function getOrCreatePlayerId() {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
   }
 }
-const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0 };
+const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, roomX: 0, roomY: 0, drivingCar: false };
 const remotePlayers = new Map();
 const speechElements = new Map();
 const connections = new Map();
@@ -1005,6 +1008,8 @@ let animationTime = 0;
 let viewport = { width: 0, height: 0, dpr: 1 };
 let worldMap = [];
 let worldSize = { width: 0, height: 0 };
+let terrainCache = null;
+let terrainCacheDirty = true;
 const camera = { x: .5, y: .55 };
 const houseStructures = [
   { id: 'house-1', texture: houseTextures.house, anchorX: 420 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 120, baseHeight: 54, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
@@ -1014,6 +1019,97 @@ const houseStructures = [
   { id: 'house-5', texture: houseTextures.house, anchorX: 1600 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 120, baseHeight: 52, visualWidth: 120, visualHeight: 100, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
   { id: 'house-6', texture: houseTextures.house3, anchorX: 1900 - 2 * TILE_SIZE, anchorY: 610 + 2 * TILE_SIZE, baseWidth: 138, baseHeight: 60, visualWidth: 138, visualHeight: 110, hitbox: { left: 0, top: 0, right: 0, bottom: 0 } },
 ];
+
+// --- Voiture interactive ----------------------------------------------------
+// Objet unique sur la carte : garee par defaut pres des maisons, un joueur peut
+// cliquer dessus pour monter dedans (deplacement plus rapide), puis recliquer
+// pour en sortir. `driverId` designe qui la conduit actuellement (ou null si
+// elle est garee) ; x/y/direction ne servent qu'a memoriser sa position quand
+// elle est garee - pendant qu'elle roule, elle suit simplement la position du
+// joueur qui la conduit (locale ou distante), donc aucune synchro reseau
+// dediee a sa position n'est necessaire pendant la conduite.
+const car = { id: 'car-1', x: 560 / WORLD_SIZE.width, y: 700 / WORLD_SIZE.height, direction: 'down', driverId: null };
+const carTextures = {
+  down: loadAssetImage('car_down.png'),
+  left: loadAssetImage('car_left.png'),
+  right: loadAssetImage('car_right.png'),
+  up: loadAssetImage('car_up.png'),
+};
+
+function getCarRenderPosition() {
+  if (car.driverId === localPlayer.id) return { x: localPlayer.x, y: localPlayer.y };
+  if (car.driverId) {
+    const driver = remotePlayers.get(car.driverId);
+    if (driver) return { x: driver.x, y: driver.y };
+  }
+  return { x: car.x, y: car.y };
+}
+
+function enterCar() {
+  if (car.driverId || localPlayer.drivingCar || localPlayer.insideHouse) return;
+  car.driverId = localPlayer.id;
+  localPlayer.drivingCar = true;
+  broadcastCarEvent('enter');
+  sendState();
+}
+
+function exitCar() {
+  if (!localPlayer.drivingCar) return;
+  car.driverId = null;
+  car.x = localPlayer.x;
+  car.y = localPlayer.y;
+  car.direction = localPlayer.direction;
+  localPlayer.drivingCar = false;
+  broadcastCarEvent('exit');
+  sendState();
+}
+
+function broadcastCarEvent(action) {
+  const payload = { type: 'car-event', action, playerId: localPlayer.id, x: car.x, y: car.y, direction: car.direction };
+  if (isHost) broadcast(payload);
+  else if (hostConnection?.open) hostConnection.send(payload);
+}
+
+function applyCarEvent(payload) {
+  if (!payload?.playerId || payload.playerId === localPlayer.id) return;
+  if (payload.action === 'enter') {
+    car.driverId = payload.playerId;
+    return;
+  }
+  if (payload.action === 'exit' && car.driverId === payload.playerId) {
+    car.driverId = null;
+    car.x = Number.isFinite(payload.x) ? payload.x : car.x;
+    car.y = Number.isFinite(payload.y) ? payload.y : car.y;
+    car.direction = payload.direction || car.direction;
+  }
+}
+
+function handleCarClick(screenX, screenY) {
+  if (localPlayer.insideHouse || transitionState.active) return;
+  const carPos = getCarRenderPosition();
+  const carScreen = worldToScreen(carPos.x, carPos.y);
+  const hitRadius = CAR_CLICK_RADIUS * cameraZoom;
+  const distance = Math.hypot(screenX - carScreen.x, screenY - (carScreen.y - 10 * cameraZoom));
+  if (distance > hitRadius) return;
+  if (localPlayer.drivingCar) { exitCar(); return; }
+  if (car.driverId) { addChatMessage('Cette voiture est déjà occupée.', 'Prairie'); return; }
+  const distanceToCar = Math.hypot(
+    wrapDelta(localPlayer.x - carPos.x) * worldSize.width,
+    wrapDelta(localPlayer.y - carPos.y) * worldSize.height,
+  );
+  if (distanceToCar > CAR_ENTER_RADIUS) { addChatMessage('Approche-toi de la voiture pour monter dedans.', 'Prairie'); return; }
+  enterCar();
+}
+
+function drawCar(positionX, positionY, direction = 'down') {
+  const position = worldToScreen(positionX, positionY);
+  if (position.x < -60 || position.x > viewport.width + 60 || position.y < -60 || position.y > viewport.height + 60) return;
+  const texture = carTextures[direction] || carTextures.down;
+  if (!texture.complete || texture.naturalWidth <= 0) return;
+  const width = texture.naturalWidth * cameraZoom;
+  const height = texture.naturalHeight * cameraZoom;
+  context.drawImage(texture, position.x - width / 2, position.y - height, width, height);
+}
 
 function updateHouseStructureBounds() {
   houseStructures.forEach((structure) => {
@@ -1222,6 +1318,11 @@ function createWorldMap() {
   houseStructures.forEach(() => {});
 
   worldMap = map;
+  invalidateTerrainCache();
+}
+
+function invalidateTerrainCache() {
+  terrainCacheDirty = true;
 }
 
 // La carte boucle sur elle-meme (est/ouest et nord/sud) : plus de bordure
@@ -1271,7 +1372,7 @@ function tileRandom(column, row, type, mask) {
   return (hash ^ (hash >>> 16)) >>> 0;
 }
 
-function drawTile(type, column, row) {
+function drawTile(type, column, row, targetContext = context, renderZoom = cameraZoom) {
   // `column`/`row` peuvent sortir de la grille de base (boucle infinie) : on
   // s'en sert tels quels pour la position a l'ecran, mais on boucle vers la
   // grille reelle pour choisir la texture/masque afin que la couture soit
@@ -1288,22 +1389,22 @@ function drawTile(type, column, row) {
   const image = availableTextures.length > 0 ? availableTextures[tileRandom(wrappedColumn, wrappedRow, type, mask) % availableTextures.length] : null;
   const x = column * TILE_SIZE;
   const y = row * TILE_SIZE;
-  const tileDrawSize = TILE_SIZE + 1 / cameraZoom;
+  const tileDrawSize = TILE_SIZE + 1 / renderZoom;
 
   if (type === 'sidewalk') {
-    if (image) context.drawImage(image, x, y, tileDrawSize, tileDrawSize);
+    if (image) targetContext.drawImage(image, x, y, tileDrawSize, tileDrawSize);
     else {
-      context.fillStyle = '#c8c5b5';
-      context.fillRect(x, y, tileDrawSize, tileDrawSize);
+      targetContext.fillStyle = '#c8c5b5';
+      targetContext.fillRect(x, y, tileDrawSize, tileDrawSize);
     }
     return;
   }
 
-  if (image) context.drawImage(image, x, y, tileDrawSize, tileDrawSize);
-  else if (type === 'road' && roadFallback.complete && roadFallback.naturalWidth > 0) context.drawImage(roadFallback, x, y, tileDrawSize, tileDrawSize);
+  if (image) targetContext.drawImage(image, x, y, tileDrawSize, tileDrawSize);
+  else if (type === 'road' && roadFallback.complete && roadFallback.naturalWidth > 0) targetContext.drawImage(roadFallback, x, y, tileDrawSize, tileDrawSize);
   else {
-    context.fillStyle = type === 'road' ? '#6e4f86' : '#315951';
-    context.fillRect(x, y, tileDrawSize, tileDrawSize);
+    targetContext.fillStyle = type === 'road' ? '#6e4f86' : '#315951';
+    targetContext.fillRect(x, y, tileDrawSize, tileDrawSize);
   }
 
   if (type !== 'road') return;
@@ -1320,11 +1421,11 @@ function drawTile(type, column, row) {
       ? roadTrackTextures.vertical
       : null;
   if (trackImage?.complete && trackImage.naturalWidth > 0) {
-    context.drawImage(trackImage, x, y, tileDrawSize, tileDrawSize);
+    targetContext.drawImage(trackImage, x, y, tileDrawSize, tileDrawSize);
   }
 }
 
-function drawRoadUnderlay(column, row) {
+function drawRoadUnderlay(column, row, targetContext = context, renderZoom = cameraZoom) {
   const cols = worldMap[0]?.length || 1;
   const rows = worldMap.length || 1;
   const wrappedColumn = wrapIndex(column, cols);
@@ -1337,10 +1438,40 @@ function drawRoadUnderlay(column, row) {
     : null;
   const x = column * TILE_SIZE;
   const y = row * TILE_SIZE;
-  const tileDrawSize = TILE_SIZE + 1 / cameraZoom;
-  context.fillStyle = '#6e4f86';
-  context.fillRect(x, y, tileDrawSize, tileDrawSize);
-  if (image) context.drawImage(image, x, y, tileDrawSize, tileDrawSize);
+  const tileDrawSize = TILE_SIZE + 1 / renderZoom;
+  targetContext.fillStyle = '#6e4f86';
+  targetContext.fillRect(x, y, tileDrawSize, tileDrawSize);
+  if (image) targetContext.drawImage(image, x, y, tileDrawSize, tileDrawSize);
+}
+
+function buildTerrainCache() {
+  if (!terrainCache || terrainCache.width !== worldSize.width || terrainCache.height !== worldSize.height) {
+    terrainCache = document.createElement('canvas');
+    terrainCache.width = worldSize.width;
+    terrainCache.height = worldSize.height;
+  }
+  const cacheContext = terrainCache.getContext('2d');
+  cacheContext.imageSmoothingEnabled = false;
+  cacheContext.clearRect(0, 0, terrainCache.width, terrainCache.height);
+  const columns = Math.ceil(worldSize.width / TILE_SIZE);
+  const rows = Math.ceil(worldSize.height / TILE_SIZE);
+  const mapColumns = worldMap[0]?.length || 1;
+  const mapRows = worldMap.length || 1;
+  for (let row = 0; row < rows; row += 1) {
+    const typeRow = worldMap[wrapIndex(row, mapRows)];
+    for (let column = 0; column < columns; column += 1) {
+      if (typeRow[wrapIndex(column, mapColumns)] === 'sidewalk') {
+        drawRoadUnderlay(column, row, cacheContext, 1);
+      }
+    }
+  }
+  for (let row = 0; row < rows; row += 1) {
+    const typeRow = worldMap[wrapIndex(row, mapRows)];
+    for (let column = 0; column < columns; column += 1) {
+      drawTile(typeRow[wrapIndex(column, mapColumns)], column, row, cacheContext, 1);
+    }
+  }
+  terrainCacheDirty = false;
 }
 
 function resize() {
@@ -1370,28 +1501,21 @@ function drawWorld() {
   context.fillStyle = '#315951'; context.fillRect(0, 0, width, height);
   const cameraX = camera.x * worldSize.width;
   const cameraY = camera.y * worldSize.height;
-  // Pas de clamp sur les bords ici : la carte boucle, donc on peut demander des
-  // colonnes/lignes hors de la grille de base, `drawTile` se charge de boucler
-  // vers la texture correspondante tout en gardant la vraie position a l'ecran.
-  const visibleLeft = Math.floor((cameraX - width / (2 * cameraZoom)) / TILE_SIZE) - 1;
-  const visibleRight = Math.ceil((cameraX + width / (2 * cameraZoom)) / TILE_SIZE) + 1;
-  const visibleTop = Math.floor((cameraY - height / (2 * cameraZoom)) / TILE_SIZE) - 1;
-  const visibleBottom = Math.ceil((cameraY + height / (2 * cameraZoom)) / TILE_SIZE) + 1;
-  const cols = worldMap[0]?.length || 1;
-  const rows = worldMap.length || 1;
+  if (terrainCacheDirty) buildTerrainCache();
   context.save();
   context.translate(width / 2 - cameraX * cameraZoom, height / 2 - cameraY * cameraZoom);
   context.scale(cameraZoom, cameraZoom);
-  for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
-    const type_row = worldMap[wrapIndex(rowIndex, rows)];
-    for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {
-      if (type_row[wrapIndex(columnIndex, cols)] === 'sidewalk') drawRoadUnderlay(columnIndex, rowIndex);
-    }
-  }
-  for (let rowIndex = visibleTop; rowIndex < visibleBottom; rowIndex += 1) {
-    const type_row = worldMap[wrapIndex(rowIndex, rows)];
-    for (let columnIndex = visibleLeft; columnIndex < visibleRight; columnIndex += 1) {
-      drawTile(type_row[wrapIndex(columnIndex, cols)], columnIndex, rowIndex);
+  const leftWorld = cameraX - width / (2 * cameraZoom);
+  const rightWorld = cameraX + width / (2 * cameraZoom);
+  const topWorld = cameraY - height / (2 * cameraZoom);
+  const bottomWorld = cameraY + height / (2 * cameraZoom);
+  const firstWorldColumn = Math.floor(leftWorld / worldSize.width) - 1;
+  const lastWorldColumn = Math.ceil(rightWorld / worldSize.width) + 1;
+  const firstWorldRow = Math.floor(topWorld / worldSize.height) - 1;
+  const lastWorldRow = Math.ceil(bottomWorld / worldSize.height) + 1;
+  for (let worldRow = firstWorldRow; worldRow <= lastWorldRow; worldRow += 1) {
+    for (let worldColumn = firstWorldColumn; worldColumn <= lastWorldColumn; worldColumn += 1) {
+      context.drawImage(terrainCache, worldColumn * worldSize.width, worldRow * worldSize.height);
     }
   }
   context.restore();
@@ -1505,9 +1629,13 @@ function draw() {
       y: structure.anchorY / worldSize.height,
       draw: () => drawStructure(structure),
     })),
+    // La voiture n'est dessinee comme objet a part que lorsqu'elle est garee :
+    // pendant qu'elle roule, c'est le rendu du joueur conducteur (ci-dessous)
+    // qui la remplace, a sa propre position.
+    ...(car.driverId ? [] : [{ y: car.y, draw: () => drawCar(car.x, car.y, car.direction) }]),
     ...players.map((player) => ({
       y: player.y,
-      draw: () => drawPlayer(player, player.isLocal),
+      draw: () => (player.drivingCar ? drawCar(player.x, player.y, player.direction) : drawPlayer(player, player.isLocal)),
     })),
   ].sort((first, second) => first.y - second.y);
 
@@ -1615,7 +1743,8 @@ function update(delta) {
     localPlayer.moving = moving;
     localPlayer.movementSpeed = moving ? Math.min(1.75, movementStrength * 1.5) : 0;
     if (moving) {
-      const normalizedDistance = PLAYER_SPEED * delta / 1000 / worldSize.width;
+      const speedMultiplier = localPlayer.drivingCar ? CAR_SPEED_MULTIPLIER : 1;
+      const normalizedDistance = PLAYER_SPEED * speedMultiplier * delta / 1000 / worldSize.width;
       // On boucle plutot que de clamper : sortir d'un cote fait reapparaitre
       // de l'autre, aucune bordure invisible.
       const nextX = wrapUnit(localPlayer.x + vector.x * normalizedDistance);
@@ -1634,7 +1763,8 @@ function update(delta) {
       if (!zone) return false;
       return playerPixelX > zone.left && playerPixelX < zone.right && playerPixelY > zone.top && playerPixelY < zone.bottom;
     });
-    if (doorHouse) enterHouse(doorHouse);
+    // On ne rentre pas dans une maison en voiture : il faut d'abord en descendre.
+    if (doorHouse && !localPlayer.drivingCar) enterHouse(doorHouse);
   }
   const smoothing = 1 - Math.exp(-delta / 85);
   remotePlayers.forEach((player) => {
@@ -1682,6 +1812,7 @@ function sendState() {
       insideHouse: localPlayer.insideHouse || null,
       roomX: localPlayer.roomX || 0,
       roomY: localPlayer.roomY || 0,
+      drivingCar: localPlayer.drivingCar || false,
     },
   };
   if (isHost) broadcast(payload);
@@ -1843,6 +1974,16 @@ function receive(connection, payload) {
   }
 
   if (payload.type === 'leave') {
+    // Si le joueur qui quitte conduisait la voiture, on la libere a sa
+    // derniere position connue (avant suppression) plutot que de la laisser
+    // bloquee "occupee" pour toujours.
+    if (car.driverId === payload.playerId) {
+      const lastPosition = remotePlayers.get(payload.playerId);
+      car.driverId = null;
+      car.x = lastPosition?.x ?? car.x;
+      car.y = lastPosition?.y ?? car.y;
+      car.direction = lastPosition?.direction ?? car.direction;
+    }
     remotePlayers.delete(payload.playerId);
     if (isHost) announcePresence('leave', payload.playerId, connection.peer);
     return;
@@ -1867,6 +2008,10 @@ function receive(connection, payload) {
       peerId: connection.peer,
     };
     remotePlayers.set(payload.player.id, player);
+    if (isHost) broadcast(payload, connection.peer);
+  }
+  if (payload.type === 'car-event') {
+    applyCarEvent(payload);
     if (isHost) broadcast(payload, connection.peer);
   }
   if (payload.type === 'hello') {
@@ -2087,6 +2232,10 @@ canvas.addEventListener('wheel', (event) => {
   event.preventDefault();
   updateCameraZoom(cameraZoom * (1 - event.deltaY * .001));
 }, { passive: false });
+canvas.addEventListener('click', (event) => {
+  const rect = canvas.getBoundingClientRect();
+  handleCarClick(event.clientX - rect.left, event.clientY - rect.top);
+});
 canvas.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch') return;
   zoomPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -2203,8 +2352,3 @@ mainMenu.hidden = true;
 checkForGameVersion();
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });
-
-
-
-
-

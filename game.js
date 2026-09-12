@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.214936486';
+const APP_VERSION = '2026.09.12.223516110';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -72,6 +72,7 @@ const accountLogout = document.querySelector('#account-logout');
 const houseChoiceModal = document.querySelector('#house-choice-modal');
 const houseChoiceList = document.querySelector('#house-choice-list');
 const houseChoiceCancel = document.querySelector('#house-choice-cancel');
+const houseEditToggle = document.querySelector('#house-edit-toggle');
 const loginIdentifier = document.querySelector('#login-identifier');
 const loginPassword = document.querySelector('#login-password');
 const loginAccount = document.querySelector('#login-account');
@@ -843,36 +844,8 @@ function closeAuthWindow() {
   menuMessage.textContent = '';
 }
 
-function createLocalAccount() {
-  const name = newAccountName.value.trim().replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 18);
-  if (name.length < 2) {
-    menuMessage.textContent = 'Choisissez un nom de 2 caractères minimum.';
-    return;
-  }
-  const accounts = JSON.parse(localStorage.getItem(accountsStorageKey) || '{}');
-  if (accounts[name]) {
-    menuMessage.textContent = 'Ce compte existe déjà.';
-    return;
-  }
-  accounts[name] = { coins: 0, cooldownUntil: 0, character: 'noelle', ownedSkins: ['noelle'] };
-  localStorage.setItem(accountsStorageKey, JSON.stringify(accounts));
-  localStorage.setItem(activeAccountStorageKey, name);
-  session.accountName = name;
-  session.nickname = name;
-  session.coins = 0;
-  session.cooldownUntil = 0;
-  session.character = 'noelle';
-  session.ownedSkins = ['noelle'];
-  localPlayer.character = 'noelle';
-  emoteActive = false;
-  localPlayer.emoteActive = false;
-  updateAccountUi();
-  mainMenu.hidden = true;
-}
-
 function openAccount() {
-  if (!isAuthenticated) {
-    mainMenu.hidden = false;
+  if (!mainMenu.hidden) {
     hideAuthForm();
     showLogin.focus();
     return;
@@ -1196,17 +1169,27 @@ const FURNITURE_STORAGE_PREFIX = 'prairie-home-furniture:';
 const chairTexture = loadAssetImage('chair.png');
 const homeFurnitureByOwner = new Map();
 let pendingHouseEntry = null;
+let houseEditMode = false;
+
+function updateHouseEditToggle() {
+  const canEditHouse = Boolean(localPlayer.insideHouse && localPlayer.homeOwnerId === localPlayer.id);
+  if (!canEditHouse) houseEditMode = false;
+  houseEditToggle.hidden = !canEditHouse;
+  houseEditToggle.classList.toggle('is-active', canEditHouse && houseEditMode);
+  houseEditToggle.setAttribute('aria-pressed', canEditHouse && houseEditMode ? 'true' : 'false');
+  houseEditToggle.title = houseEditMode ? 'Désactiver la modification' : 'Modifier ma maison';
+}
 function getFurnitureStorageKey(ownerId) {
   return `${FURNITURE_STORAGE_PREFIX}${ownerId}`;
 }
 function loadLocalFurniture() {
   try {
     const saved = JSON.parse(localStorage.getItem(getFurnitureStorageKey(getOrCreatePlayerId())) || '[]');
-    return Array.isArray(saved) ? saved.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < 20) : [];
+    return Array.isArray(saved) ? saved.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < 48 || typeof tile === 'string' && /^([a-z-]+):([0-9]+)$/.test(tile)) : [];
   } catch { return []; }
 }
 const localFurniture = new Set(loadLocalFurniture());
-const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, nickname: session.nickname, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, emoteDuration: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, homeOwnerId: null, furniture: [...localFurniture], roomX: 0, roomY: 0, drivingCar: false };
+const localPlayer = { id: getOrCreatePlayerId(), x: .55, y: .62, direction: 'down', moving: false, character: session.character, nickname: session.nickname, emoteActive: false, emoteActionId: 0, emoteStartedAt: 0, emoteDuration: 0, animationOffset: getPlayerAnimationOffset(`local-${Math.random().toString(36).slice(2, 8)}`), insideHouse: null, homeOwnerId: null, interiorRoomId: 'living', furniture: [...localFurniture], roomX: 0, roomY: 0, drivingCar: false };
 homeFurnitureByOwner.set(localPlayer.id, localFurniture);
 const remotePlayers = new Map();
 const speechElements = new Map();
@@ -1389,17 +1372,61 @@ function updateHouseStructureBounds() {
 }
 
 // --- Interieur des maisons -------------------------------------------------
-const ROOM_COLS = 5;
-const ROOM_ROWS = 4;
-const ROOM_ZOOM = 2.6;
+const ROOM_COLS = 8;
+const ROOM_ROWS = 6;
+const ROOM_MAX_ZOOM = 4;
 const ROOM_PLAYER_RADIUS = 7;
-const roomPixel = { width: ROOM_COLS * TILE_SIZE, height: ROOM_ROWS * TILE_SIZE };
-const doorTileColumn = Math.floor(ROOM_COLS / 2);
-const doorZoneRoom = {
-  left: doorTileColumn * TILE_SIZE + TILE_SIZE * .2,
-  right: (doorTileColumn + 1) * TILE_SIZE - TILE_SIZE * .2,
-};
+const roomDoorSpan = { start: 0, end: TILE_SIZE };
+const interiorCamera = { x: 0, y: 0 };
 const transitionState = { active: false, pending: null };
+
+function getHouseLayout(ownerId) {
+  const hash = [...ownerId].reduce((total, character) => (total * 31 + character.charCodeAt(0)) >>> 0, 0);
+  const bedroomCount = 1 + hash % 3;
+  const rooms = [
+    { id: 'living', label: 'Salon', x: 4, y: 4, cols: 10, rows: 7, doors: [
+      { side: 'top', target: 'kitchen', targetSide: 'bottom' },
+      { side: 'left', target: 'bathroom', targetSide: 'right' },
+      { side: 'right', target: 'bedroom-1', targetSide: 'left' },
+      { side: 'bottom', target: null, exit: true },
+    ] },
+    { id: 'kitchen', label: 'Cuisine', x: 5, y: 0, cols: 7, rows: 4, doors: [{ side: 'bottom', target: 'living', targetSide: 'top' }] },
+    { id: 'bathroom', label: 'Salle de bain', x: 0, y: 5, cols: 4, rows: 4, doors: [{ side: 'right', target: 'living', targetSide: 'left' }] },
+  ];
+  for (let bedroom = 1; bedroom <= bedroomCount; bedroom += 1) {
+    const previous = bedroom === 1 ? 'living' : `bedroom-${bedroom - 1}`;
+    const next = bedroom === 1 ? 'right' : bedroom === 2 ? 'top' : 'right';
+    const entrySide = bedroom === 1 ? 'left' : bedroom === 2 ? 'bottom' : 'left';
+    rooms.push({
+      id: `bedroom-${bedroom}`,
+      label: `Chambre ${bedroom}`,
+      x: bedroom === 1 ? 14 : bedroom === 2 ? 15 : 21,
+      y: bedroom === 1 ? 4 : 0,
+      cols: bedroom === 1 ? 7 : 6,
+      rows: bedroom === 1 ? 6 : 4,
+      doors: [{ side: entrySide, target: previous, targetSide: next }],
+    });
+    if (bedroom > 1) rooms[rooms.findIndex((room) => room.id === previous)].doors.push({ side: next, target: `bedroom-${bedroom}`, targetSide: entrySide });
+  }
+  return rooms;
+}
+
+function getInteriorRoom(ownerId, roomId = 'living') {
+  return getHouseLayout(ownerId).find((room) => room.id === roomId) || getHouseLayout(ownerId)[0];
+}
+
+function getRoomPixelSize(room) {
+  return { width: room.cols * TILE_SIZE, height: room.rows * TILE_SIZE };
+}
+
+function getDoorPosition(room, side, entering = false) {
+  const size = getRoomPixelSize(room);
+  const center = side === 'top' || side === 'bottom' ? size.width / 2 : size.height / 2;
+  if (side === 'top') return { x: center, y: TILE_SIZE * .8 };
+  if (side === 'bottom') return { x: center, y: size.height - TILE_SIZE * .8 };
+  if (side === 'left') return { x: TILE_SIZE * .8, y: center };
+  return { x: size.width - TILE_SIZE * .8, y: center };
+}
 
 function fadeTransition(onMidpoint) {
   return new Promise((resolve) => {
@@ -1431,12 +1458,19 @@ function finishHouseEntry(structure, ownerId = localPlayer.id) {
   fadeTransition(() => {
     localPlayer.insideHouse = structure.id === HOME_HOUSE_ID ? getHomeRoomId(ownerId) : structure.id;
     localPlayer.homeOwnerId = structure.id === HOME_HOUSE_ID ? ownerId : null;
+    localPlayer.interiorRoomId = 'living';
+    houseEditMode = false;
+    updateHouseEditToggle();
     if (ownerId === localPlayer.id) {
       homeFurnitureByOwner.set(localPlayer.id, localFurniture);
       localPlayer.furniture = [...localFurniture];
     }
-    localPlayer.roomX = doorTileColumn * TILE_SIZE + TILE_SIZE / 2;
-    localPlayer.roomY = roomPixel.height - TILE_SIZE * .6;
+    const livingRoom = getInteriorRoom(ownerId, 'living');
+    const livingSize = getRoomPixelSize(livingRoom);
+    localPlayer.roomX = livingSize.width / 2;
+    localPlayer.roomY = livingSize.height - TILE_SIZE * .6;
+    interiorCamera.x = livingRoom.x * TILE_SIZE + livingSize.width / 2;
+    interiorCamera.y = livingRoom.y * TILE_SIZE + livingSize.height / 2;
     localPlayer.direction = 'up';
     localPlayer.moving = false;
   }).then(() => { transitionState.active = false; });
@@ -1481,6 +1515,8 @@ function exitHouse() {
   fadeTransition(() => {
     localPlayer.insideHouse = null;
     localPlayer.homeOwnerId = null;
+    houseEditMode = false;
+    updateHouseEditToggle();
     localPlayer.x = structure.exitSpawn?.x ? structure.exitSpawn.x / worldSize.width : localPlayer.x;
     localPlayer.y = structure.exitSpawn?.y ? structure.exitSpawn.y / worldSize.height : localPlayer.y;
     localPlayer.direction = 'down';
@@ -1498,24 +1534,75 @@ function updateInside(delta) {
   const distance = PLAYER_SPEED * delta / 1000;
   let nextX = localPlayer.roomX + vector.x * distance;
   let nextY = localPlayer.roomY + vector.y * distance;
+  const currentRoom = getInteriorRoom(localPlayer.homeOwnerId || localPlayer.id, localPlayer.interiorRoomId);
+  const currentSize = getRoomPixelSize(currentRoom);
   const minX = TILE_SIZE * .5 + ROOM_PLAYER_RADIUS;
-  const maxX = roomPixel.width - TILE_SIZE * .5 - ROOM_PLAYER_RADIUS;
+  const maxX = currentSize.width - TILE_SIZE * .5 - ROOM_PLAYER_RADIUS;
   const minY = TILE_SIZE * .5 + ROOM_PLAYER_RADIUS;
-  const inDoorway = nextX > doorZoneRoom.left && nextX < doorZoneRoom.right;
-  const maxY = inDoorway ? roomPixel.height + TILE_SIZE - ROOM_PLAYER_RADIUS * .5 : roomPixel.height - TILE_SIZE * .5 - ROOM_PLAYER_RADIUS;
+  const maxY = currentSize.height - TILE_SIZE * .5 - ROOM_PLAYER_RADIUS;
+  const crossedSide = vector.y < 0 && nextY <= minY ? 'top'
+    : vector.y > 0 && nextY >= maxY ? 'bottom'
+      : vector.x < 0 && nextX <= minX ? 'left'
+        : vector.x > 0 && nextX >= maxX ? 'right' : null;
+  if (crossedSide) {
+    const door = currentRoom.doors.find((candidate) => candidate.side === crossedSide);
+    const positionOnEdge = crossedSide === 'top' || crossedSide === 'bottom' ? nextX : nextY;
+    const doorPosition = getDoorPosition(currentRoom, crossedSide);
+    const edgeCenter = crossedSide === 'top' || crossedSide === 'bottom' ? doorPosition.x : doorPosition.y;
+    const edgeSpan = TILE_SIZE * 2;
+    if (door && positionOnEdge > edgeCenter - edgeSpan / 2 && positionOnEdge < edgeCenter + edgeSpan / 2) {
+      if (door.exit) { exitHouse(); return; }
+      transitionState.active = true;
+      fadeTransition(() => {
+        localPlayer.interiorRoomId = door.target;
+        const targetRoom = getInteriorRoom(localPlayer.homeOwnerId || localPlayer.id, door.target);
+        const targetSize = getRoomPixelSize(targetRoom);
+        const entry = getDoorPosition(targetRoom, door.targetSide, true);
+        localPlayer.roomX = entry.x;
+        localPlayer.roomY = entry.y;
+        interiorCamera.x = targetRoom.x * TILE_SIZE + targetSize.width / 2;
+        interiorCamera.y = targetRoom.y * TILE_SIZE + targetSize.height / 2;
+      }).then(() => { transitionState.active = false; });
+      return;
+    }
+  }
   nextX = Math.max(minX, Math.min(maxX, nextX));
   nextY = Math.max(minY, Math.min(maxY, nextY));
   localPlayer.roomX = nextX;
   localPlayer.roomY = nextY;
   if (Math.abs(vector.x) > Math.abs(vector.y)) localPlayer.direction = vector.x > 0 ? 'right' : 'left';
   else localPlayer.direction = vector.y > 0 ? 'down' : 'up';
-  if (nextY > roomPixel.height + TILE_SIZE * .55 && inDoorway) exitHouse();
 }
 
 function roomToScreen(px, py) {
+  const activeRoom = getInteriorRoom(localPlayer.homeOwnerId || localPlayer.id, localPlayer.interiorRoomId);
+  return interiorPlanToScreen(activeRoom.x * TILE_SIZE + px, activeRoom.y * TILE_SIZE + py);
+}
+
+function getInteriorPlanBounds(ownerId) {
+  const layout = getHouseLayout(ownerId);
+  return layout.reduce((bounds, room) => ({
+    left: Math.min(bounds.left, room.x * TILE_SIZE),
+    top: Math.min(bounds.top, room.y * TILE_SIZE),
+    right: Math.max(bounds.right, (room.x + room.cols) * TILE_SIZE),
+    bottom: Math.max(bounds.bottom, (room.y + room.rows) * TILE_SIZE),
+  }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
+}
+
+function getInteriorZoom(ownerId) {
+  const activeRoom = getInteriorRoom(ownerId, localPlayer.interiorRoomId);
+  const roomSize = getRoomPixelSize(activeRoom);
+  const availableWidth = Math.max(240, viewport.width * .92);
+  const availableHeight = Math.max(180, viewport.height * .78);
+  return Math.min(ROOM_MAX_ZOOM, availableWidth / roomSize.width, availableHeight / roomSize.height);
+}
+
+function interiorPlanToScreen(globalX, globalY) {
+  const ownerId = localPlayer.homeOwnerId || localPlayer.id;
+  const zoom = getInteriorZoom(ownerId);
   return {
-    x: viewport.width / 2 + (px - roomPixel.width / 2) * ROOM_ZOOM,
-    y: viewport.height / 2 + (py - roomPixel.height / 2) * ROOM_ZOOM,
+    x: viewport.width / 2 + (globalX - interiorCamera.x) * zoom,
+    y: viewport.height / 2 + (globalY - interiorCamera.y) * zoom,
   };
 }
 
@@ -1525,9 +1612,12 @@ function drawInteriorPlayer(player, isLocal = false) {
   const frame = emote ? getEmoteFrameIndex(emote, imageFrames, player) : getAnimationFrameIndex(player, imageFrames);
   const image = imageFrames[frame] || imageFrames[0];
   if (!image) return;
-  const width = (image.naturalWidth || 23) * ROOM_ZOOM;
-  const height = (image.naturalHeight || 47) * ROOM_ZOOM;
-  const position = roomToScreen(player.roomX ?? roomPixel.width / 2, player.roomY ?? roomPixel.height / 2);
+  const zoom = getInteriorZoom(localPlayer.homeOwnerId || localPlayer.id);
+  const width = (image.naturalWidth || 23) * zoom;
+  const height = (image.naturalHeight || 47) * zoom;
+  const activeRoom = getInteriorRoom(localPlayer.homeOwnerId || localPlayer.id, localPlayer.interiorRoomId);
+  const activeSize = getRoomPixelSize(activeRoom);
+  const position = roomToScreen(player.roomX ?? activeSize.width / 2, player.roomY ?? activeSize.height / 2);
   const x = position.x;
   const y = position.y + 4;
   context.save();
@@ -1542,11 +1632,16 @@ function drawInteriorPlayer(player, isLocal = false) {
 function drawInteriorFurniture(ownerId) {
   const furniture = homeFurnitureByOwner.get(ownerId) || [];
   const chairReady = chairTexture.complete && chairTexture.naturalWidth > 0;
-  furniture.forEach((tileIndex) => {
-    const column = tileIndex % ROOM_COLS;
-    const row = Math.floor(tileIndex / ROOM_COLS);
+  const currentRoom = getInteriorRoom(ownerId, localPlayer.interiorRoomId);
+  furniture.forEach((storedTile) => {
+    const [storedRoomId, storedIndex] = typeof storedTile === 'string' ? storedTile.split(':') : ['living', storedTile];
+    if (storedRoomId !== localPlayer.interiorRoomId) return;
+    const tileIndex = Number(storedIndex);
+    if (!Number.isInteger(tileIndex)) return;
+    const column = tileIndex % currentRoom.cols;
+    const row = Math.floor(tileIndex / currentRoom.cols);
     const position = roomToScreen(column * TILE_SIZE, row * TILE_SIZE);
-    const size = TILE_SIZE * ROOM_ZOOM;
+    const size = TILE_SIZE * getInteriorZoom(ownerId);
     if (chairReady) context.drawImage(chairTexture, position.x, position.y, size, size);
   });
 }
@@ -1557,29 +1652,40 @@ function drawInterior() {
   context.fillRect(0, 0, width, height);
 
   const floorReady = interiorFloorTexture.complete && interiorFloorTexture.naturalWidth > 0;
-  for (let row = 0; row < ROOM_ROWS; row += 1) {
-    for (let column = 0; column < ROOM_COLS; column += 1) {
-      const position = roomToScreen(column * TILE_SIZE, row * TILE_SIZE);
-      const size = TILE_SIZE * ROOM_ZOOM;
-      if (floorReady) context.drawImage(interiorFloorTexture, position.x, position.y, size, size);
-      else { context.fillStyle = '#8a6f4f'; context.fillRect(position.x, position.y, size, size); }
+  const ownerId = localPlayer.homeOwnerId || localPlayer.id;
+  const layout = getHouseLayout(ownerId);
+  const zoom = getInteriorZoom(ownerId);
+  layout.forEach((room) => {
+    const roomSize = getRoomPixelSize(room);
+    const roomPosition = interiorPlanToScreen(room.x * TILE_SIZE, room.y * TILE_SIZE);
+    for (let row = 0; row < room.rows; row += 1) {
+      for (let column = 0; column < room.cols; column += 1) {
+        const position = interiorPlanToScreen((room.x + column) * TILE_SIZE, (room.y + row) * TILE_SIZE);
+        const size = TILE_SIZE * zoom;
+        if (floorReady) context.drawImage(interiorFloorTexture, position.x, position.y, size, size);
+        else { context.fillStyle = '#8a6f4f'; context.fillRect(position.x, position.y, size, size); }
+      }
     }
-  }
-  // Case de sortie qui depasse en bas, au centre.
-  const doorPosition = roomToScreen(doorTileColumn * TILE_SIZE, ROOM_ROWS * TILE_SIZE);
-  const doorSize = TILE_SIZE * ROOM_ZOOM;
-  if (floorReady) context.drawImage(interiorFloorTexture, doorPosition.x, doorPosition.y, doorSize, doorSize);
-  else { context.fillStyle = '#8a6f4f'; context.fillRect(doorPosition.x, doorPosition.y, doorSize, doorSize); }
-  context.save();
-  context.globalAlpha = .5;
-  context.fillStyle = '#101b1a';
-  context.fillRect(doorPosition.x, doorPosition.y, doorSize, doorSize * .3);
-  context.restore();
-
-  if (localPlayer.homeOwnerId) drawInteriorFurniture(localPlayer.homeOwnerId);
+    const wallThickness = Math.max(2, TILE_SIZE * zoom * .16);
+    context.fillStyle = 'rgba(16, 27, 26, .86)';
+    context.fillRect(roomPosition.x, roomPosition.y, roomSize.width * zoom, wallThickness);
+    context.fillRect(roomPosition.x, roomPosition.y + roomSize.height * zoom - wallThickness, roomSize.width * zoom, wallThickness);
+    context.fillRect(roomPosition.x, roomPosition.y, wallThickness, roomSize.height * zoom);
+    context.fillRect(roomPosition.x + roomSize.width * zoom - wallThickness, roomPosition.y, wallThickness, roomSize.height * zoom);
+    room.doors.forEach((door) => {
+      const doorPosition = getDoorPosition(room, door.side);
+      const globalDoor = interiorPlanToScreen(room.x * TILE_SIZE + doorPosition.x, room.y * TILE_SIZE + doorPosition.y);
+      const span = Math.min(roomDoorSpan.end - roomDoorSpan.start, (door.side === 'top' || door.side === 'bottom' ? room.cols : room.rows) * TILE_SIZE * .55) * zoom;
+      const opening = Math.max(12, span);
+      context.fillStyle = '#8a6f4f';
+      if (door.side === 'top' || door.side === 'bottom') context.fillRect(globalDoor.x - opening / 2, door.side === 'top' ? roomPosition.y : roomPosition.y + roomSize.height * zoom - wallThickness, opening, wallThickness);
+      else context.fillRect(door.side === 'left' ? roomPosition.x : roomPosition.x + roomSize.width * zoom - wallThickness, globalDoor.y - opening / 2, wallThickness, opening);
+    });
+  });
+  drawInteriorFurniture(ownerId);
 
   const insidePlayers = [
-    ...[...remotePlayers.values()].filter((player) => player.insideHouse === localPlayer.insideHouse),
+    ...[...remotePlayers.values()].filter((player) => player.insideHouse === localPlayer.insideHouse && (player.interiorRoomId || 'living') === localPlayer.interiorRoomId),
     { ...localPlayer, isLocal: true },
   ].sort((first, second) => (first.roomY ?? 0) - (second.roomY ?? 0));
   insidePlayers.forEach((player) => drawInteriorPlayer(player, player.isLocal === true));
@@ -1587,7 +1693,8 @@ function drawInterior() {
   context.fillStyle = 'rgba(247,241,222,.35)';
   context.font = '11px DM Mono, monospace';
   context.textAlign = 'left';
-  context.fillText('Intérieur — sors par le bas', 30, height - 30);
+  const currentRoom = getInteriorRoom(ownerId, localPlayer.interiorRoomId);
+  context.fillText(`${currentRoom.label} — plan de la maison`, 30, height - 30);
 }
 
 function createWorldMap() {
@@ -1928,7 +2035,6 @@ function drawSpeechBubble(player, anchorX, anchorY) {
   context.textBaseline = 'middle';
   lines.forEach((text, index) => context.fillText(text, anchorX, top + padding + 7 + index * 14));
   context.restore();
-  if (localPlayer.homeOwnerId) drawInteriorFurniture(localPlayer.homeOwnerId);
 }
 
 function draw() {
@@ -2126,6 +2232,7 @@ function sendState() {
       speechUntil: Number.isFinite(localPlayer.speechUntil) ? localPlayer.speechUntil : 0,
       insideHouse: localPlayer.insideHouse || null,
       homeOwnerId: localPlayer.homeOwnerId || null,
+      interiorRoomId: localPlayer.interiorRoomId || 'living',
       nickname: session.nickname || localPlayer.id.slice(-6),
       furniture: [...localFurniture],
       roomX: localPlayer.roomX || 0,
@@ -2347,9 +2454,10 @@ function receive(connection, payload) {
   }
   if (payload.type === 'state') {
     const previous = remotePlayers.get(payload.player.id);
-    const remoteFurniture = Array.isArray(payload.player.furniture) ? payload.player.furniture.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < ROOM_COLS * ROOM_ROWS) : [];
+    const remoteFurniture = Array.isArray(payload.player.furniture) ? payload.player.furniture.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < ROOM_COLS * ROOM_ROWS || typeof tile === 'string' && /^([a-z-]+):([0-9]+)$/.test(tile)) : [];
     homeFurnitureByOwner.set(payload.player.id, remoteFurniture);
     const enteredDifferentHouse = payload.player.insideHouse && payload.player.insideHouse !== previous?.insideHouse;
+    const enteredDifferentRoom = payload.player.interiorRoomId && payload.player.interiorRoomId !== previous?.interiorRoomId;
     const player = {
       ...payload.player,
       speech: previous?.speech ?? '',
@@ -2358,8 +2466,9 @@ function receive(connection, payload) {
       y: previous?.y ?? payload.player.y,
       targetX: payload.player.x,
       targetY: payload.player.y,
-      roomX: enteredDifferentHouse ? (payload.player.roomX ?? 0) : (previous?.roomX ?? payload.player.roomX ?? 0),
-      roomY: enteredDifferentHouse ? (payload.player.roomY ?? 0) : (previous?.roomY ?? payload.player.roomY ?? 0),
+      interiorRoomId: payload.player.interiorRoomId || 'living',
+      roomX: enteredDifferentHouse || enteredDifferentRoom ? (payload.player.roomX ?? 0) : (previous?.roomX ?? payload.player.roomX ?? 0),
+      roomY: enteredDifferentHouse || enteredDifferentRoom ? (payload.player.roomY ?? 0) : (previous?.roomY ?? payload.player.roomY ?? 0),
       targetRoomX: payload.player.roomX ?? 0,
       targetRoomY: payload.player.roomY ?? 0,
       targetInsideHouse: payload.player.insideHouse || null,
@@ -2431,10 +2540,10 @@ function receive(connection, payload) {
     remotePlayers.forEach((_player, id) => { if (!incomingIds.has(id) && id !== localPlayer.id) remotePlayers.delete(id); });
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
-      const remoteFurniture = Array.isArray(player.furniture) ? player.furniture.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < ROOM_COLS * ROOM_ROWS) : [];
+      const remoteFurniture = Array.isArray(player.furniture) ? player.furniture.filter((tile) => Number.isInteger(tile) && tile >= 0 && tile < ROOM_COLS * ROOM_ROWS || typeof tile === 'string' && /^([a-z-]+):([0-9]+)$/.test(tile)) : [];
       homeFurnitureByOwner.set(player.id, remoteFurniture);
       const existing = remotePlayers.get(player.id);
-      const remotePlayer = { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, emoteStartedAt: existing && existing.emoteActionId === player.emoteActionId ? existing.emoteStartedAt : animationTime, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer };
+      const remotePlayer = { ...player, interiorRoomId: player.interiorRoomId || 'living', speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, emoteStartedAt: existing && existing.emoteActionId === player.emoteActionId ? existing.emoteStartedAt : animationTime, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer };
       remotePlayers.set(player.id, remotePlayer);
       playRemoteEmoteSound(remotePlayer, existing?.emoteActionId);
     }
@@ -2604,17 +2713,22 @@ canvas.addEventListener('wheel', (event) => {
 }, { passive: false });
 canvas.addEventListener('click', (event) => {
   const rect = canvas.getBoundingClientRect();
-  if (localPlayer.insideHouse && localPlayer.homeOwnerId === localPlayer.id && !transitionState.active) {
+  if (houseEditMode && localPlayer.insideHouse && localPlayer.homeOwnerId === localPlayer.id && !transitionState.active) {
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
-    const roomX = (screenX - viewport.width / 2) / ROOM_ZOOM + roomPixel.width / 2;
-    const roomY = (screenY - viewport.height / 2) / ROOM_ZOOM + roomPixel.height / 2;
+    const activeRoom = getInteriorRoom(localPlayer.homeOwnerId, localPlayer.interiorRoomId);
+    const zoom = getInteriorZoom(localPlayer.homeOwnerId);
+    const globalX = (screenX - viewport.width / 2) / zoom + interiorCamera.x;
+    const globalY = (screenY - viewport.height / 2) / zoom + interiorCamera.y;
+    const roomX = globalX - activeRoom.x * TILE_SIZE;
+    const roomY = globalY - activeRoom.y * TILE_SIZE;
     const column = Math.floor(roomX / TILE_SIZE);
     const row = Math.floor(roomY / TILE_SIZE);
-    if (column >= 0 && column < ROOM_COLS && row >= 0 && row < ROOM_ROWS) {
-      const tileIndex = row * ROOM_COLS + column;
-      if (localFurniture.has(tileIndex)) localFurniture.delete(tileIndex);
-      else localFurniture.add(tileIndex);
+    if (column >= 0 && column < activeRoom.cols && row >= 0 && row < activeRoom.rows) {
+      const tileIndex = row * activeRoom.cols + column;
+      const furnitureKey = localPlayer.interiorRoomId === 'living' ? tileIndex : `${localPlayer.interiorRoomId}:${tileIndex}`;
+      if (localFurniture.has(furnitureKey)) localFurniture.delete(furnitureKey);
+      else localFurniture.add(furnitureKey);
       localPlayer.furniture = [...localFurniture];
       localStorage.setItem(getFurnitureStorageKey(localPlayer.id), JSON.stringify([...localFurniture]));
       sendState();
@@ -2694,6 +2808,11 @@ accountButton.addEventListener('click', openAccount);
 skinToggle.addEventListener('click', openSkinLibrary);
 chatToggle.addEventListener('click', toggleChat);
 chatClose.addEventListener('click', closeChat);
+houseEditToggle.addEventListener('click', () => {
+  if (!localPlayer.insideHouse || localPlayer.homeOwnerId !== localPlayer.id) return;
+  houseEditMode = !houseEditMode;
+  updateHouseEditToggle();
+});
 houseChoiceCancel.addEventListener('click', closeHouseChoice);
 houseChoiceModal.querySelector('.house-choice-backdrop').addEventListener('click', closeHouseChoice);
 reloadButton.addEventListener('click', sendVersionAwareReload);

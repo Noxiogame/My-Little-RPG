@@ -46,6 +46,9 @@ button, input { font: inherit; }
 .emote-toggle:disabled { cursor: not-allowed; filter: grayscale(1); opacity: .35; }
 .skin-toggle { right: 268px; }
 .skin-toggle img { width: 27px; height: 32px; object-fit: contain; image-rendering: pixelated; }
+.house-edit-toggle { right: 482px; font-size: 20px; }
+.house-edit-toggle[hidden] { display: none; }
+.house-edit-toggle.is-active { border-color: var(--mint); background: rgba(185,231,177,.18); box-shadow: 0 0 18px rgba(185,231,177,.3); }
 .egg-toggle:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .6; }
 .egg-toggle.is-ready { border-color: rgba(255,214,140,.55); box-shadow: 0 0 0 rgba(255,214,140,.5); animation: egg-ready-pulse 1.8s ease-in-out infinite; }
 .egg-toggle.is-ready::before { content: ''; position: absolute; inset: -7px; z-index: -1; border-radius: 50%; background: radial-gradient(circle, rgba(255,214,140,.32), transparent 70%); animation: egg-ready-halo 1.8s ease-in-out infinite; }
@@ -254,6 +257,7 @@ button, input { font: inherit; }
   .egg-toggle { top: 64px; right: 14px; }
   .emote-toggle { top: 111px; right: 14px; }
   .skin-toggle { top: 158px; right: 14px; }
+  .house-edit-toggle { top: 346px; right: 14px; }
   .reload-button { top: 205px; right: 14px; }
   .chat-toggle { top: 252px; right: 14px; }
   .coin-wallet { top: 299px; right: 14px; left: auto; }

@@ -1,7 +1,7 @@
 ﻿const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.083355823';
+const APP_VERSION = '2026.09.12.084250318';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -889,11 +889,33 @@ const connections = new Map();
 const keys = new Set();
 const joystickInput = { x: 0, y: 0, active: false, pointerId: null };
 const zoomPointers = new Map();
+const PEERJS_SERVER_CANDIDATES = [
+  { host: '0.peerjs.com', secure: true, port: 443, path: '/' },
+  { host: 'peerjs.5q9.me', secure: true, port: 443, path: '/' },
+  { host: 'peerjs-server.herokuapp.com', secure: true, port: 443, path: '/' },
+  { host: 'peerjs-remote.herokuapp.com', secure: true, port: 443, path: '/' },
+];
 let pinchDistance = null;
 let peer = null;
 let hostConnection = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+let peerServerIndex = 0;
+
+function getPeerServerConfig() {
+  const base = PEERJS_SERVER_CANDIDATES[Math.min(peerServerIndex, PEERJS_SERVER_CANDIDATES.length - 1)] || { host: '0.peerjs.com', secure: true, port: 443, path: '/' };
+  return { debug: 0, ...base, path: base.path || '/' };
+}
+
+function switchPeerServer() {
+  peerServerIndex = (peerServerIndex + 1) % PEERJS_SERVER_CANDIDATES.length;
+  return getPeerServerConfig();
+}
+
+function peerJsConnectionError(error) {
+  const text = `${error?.type || ''} ${error?.message || ''}`.toLowerCase();
+  return text.includes('server') || text.includes('network') || text.includes('unavailable') || text.includes('429') || text.includes('websocket') || text.includes('handshake');
+}
 
 function scheduleReconnect(immediate = false) {
   if (reconnectTimer) return;
@@ -1734,7 +1756,8 @@ function createPeer() {
     peer = null;
   }
   closeAllConnections();
-  peer = new Peer(hostId);
+  const peerConfig = getPeerServerConfig();
+  peer = new Peer(hostId, peerConfig);
   peer.on('open', () => { isHost = true; reconnectAttempts = 0; });
   // NOTE: the initial snapshot is now sent from the 'hello' handler in receive(),
   // only after the joining peer's version has been confirmed to match. Sending it
@@ -1748,7 +1771,14 @@ function createPeer() {
   });
   peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
   peer.on('error', (error) => {
+    const currentServer = getPeerServerConfig();
+    const canRetryServer = PEERJS_SERVER_CANDIDATES.length > 1 && peerJsConnectionError(error);
     if (error?.type === 'unavailable-id') { connectToHost(hostId); return; }
+    if (canRetryServer && currentServer.host !== PEERJS_SERVER_CANDIDATES[PEERJS_SERVER_CANDIDATES.length - 1]?.host) {
+      switchPeerServer();
+      createPeer();
+      return;
+    }
     isHost = false;
     if (!versionMismatchTriggered) scheduleReconnect();
   });
@@ -1760,9 +1790,10 @@ function connectToHost(hostId) {
     peer = null;
   }
   closeAllConnections();
-  peer = new Peer();
+  const peerConfig = getPeerServerConfig();
+  peer = new Peer(undefined, peerConfig);
   peer.on('open', () => {
-    hostConnection = peer.connect(hostId, { reliable: true });
+    hostConnection = peer.connect(hostId, { reliable: true, host: peerConfig.host, port: peerConfig.port, secure: peerConfig.secure, path: peerConfig.path });
     wireConnection(hostConnection);
     hostConnection.on('open', () => {
       reconnectAttempts = 0;
@@ -1774,7 +1805,16 @@ function connectToHost(hostId) {
     try { peer.reconnect(); } catch { scheduleReconnect(); }
   });
   peer.on('close', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
-  peer.on('error', () => { if (!versionMismatchTriggered) scheduleReconnect(); });
+  peer.on('error', (error) => {
+    const currentServer = getPeerServerConfig();
+    const canRetryServer = PEERJS_SERVER_CANDIDATES.length > 1 && peerJsConnectionError(error);
+    if (canRetryServer && currentServer.host !== PEERJS_SERVER_CANDIDATES[PEERJS_SERVER_CANDIDATES.length - 1]?.host) {
+      switchPeerServer();
+      connectToHost(hostId);
+      return;
+    }
+    if (!versionMismatchTriggered) scheduleReconnect();
+  });
 }
 
 function resetJoystickPosition() {
@@ -1930,4 +1970,5 @@ mainMenu.hidden = true;
 checkForGameVersion();
 resize(); updateRewardUi(); createPeer(); requestAnimationFrame(frame);
 initializeAuth().catch(() => { isAuthenticated = false; mainMenu.hidden = true; updateAccountUi(); });
+
 

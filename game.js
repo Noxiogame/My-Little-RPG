@@ -1,7 +1,7 @@
 const canvas = document.querySelector('#game');
 const context = canvas.getContext('2d');
 context.imageSmoothingEnabled = false;
-const APP_VERSION = '2026.09.12.095543538';
+const APP_VERSION = '2026.09.12.102426154';
 const VERSION_CHECK_INTERVAL = 15000;
 const VERSION_RELOAD_KEY = 'prairie-last-reloaded-version';
 const appVersionBadge = document.querySelector('#app-version-badge');
@@ -22,7 +22,7 @@ const chatEmpty = document.querySelector('#chat-empty');
 const chatForm = document.querySelector('#chat-form');
 const chatInput = document.querySelector('#chat-input');
 const speechBubbles = document.querySelector('#speech-bubbles');
-const eggReward = document.querySelector('#egg-reward');
+const eggToggle = document.querySelector('#egg-toggle');
 const eggCooldown = document.querySelector('#egg-cooldown');
 const eggModal = document.querySelector('#egg-modal');
 const eggClose = document.querySelector('#egg-close');
@@ -77,6 +77,7 @@ const MIN_CAMERA_ZOOM = .75;
 const MAX_CAMERA_ZOOM = 2.5;
 let cameraZoom = 1.35;
 const PLAYER_SPEED = 100;
+const CHARACTER_SPRITE_FOOT_OFFSET = 6;
 const ROOM_ID = 'prairie';
 const TILE_TEXTURE_NAMES = ['0011', '0110', '0111', '1001', '1011', '1100', '1101', '1110', '1111'];
 const SIDEWALK_TEXTURE_NAMES = ['0001', '0010', '0011', '0100', '0101', '0110', '1000', '1001', '1010', '1100'];
@@ -708,13 +709,15 @@ function formatCooldown() {
 
 function updateRewardUi() {
   const available = eggState.cooldownUntil <= Date.now();
-  eggReward.disabled = !available;
   coinAmount.textContent = session.coins;
   skinCoinAmount.textContent = session.coins;
-  eggCooldown.textContent = available ? 'Disponible' : `Prochain Pipis dans ${formatCooldown()}`;
-  if (!available && !eggState.open) eggReward.title = `Prochain Pipis dans ${formatCooldown()}`;
-  else eggReward.title = 'Ouvrir le Pipis';
-  eggReward.classList.toggle('is-ready', available && !eggState.open && !eggState.broken);
+  const cooldown = formatCooldown();
+  eggCooldown.textContent = cooldown;
+  eggCooldown.hidden = cooldown === '0:00';
+  if (!available && !eggState.open) eggToggle.title = `Prochain Pipis dans ${cooldown}`;
+  else eggToggle.title = 'Ouvrir le Pipis';
+  eggToggle.disabled = !available;
+  eggToggle.classList.toggle('is-ready', available && !eggState.open && !eggState.broken);
 }
 
 function setEggStage(stage) {
@@ -1055,7 +1058,7 @@ function drawInteriorPlayer(player, isLocal = false) {
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + 3, width, height);
+  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -1256,7 +1259,7 @@ function drawPlayer(player, isLocal = false) {
   context.globalAlpha = isLocal ? 1 : .9;
   context.fillStyle = 'rgba(10, 26, 24, .26)';
   context.beginPath(); context.ellipse(x, y + height * .05, width * .42, height * .1, 0, 0, Math.PI * 2); context.fill();
-  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + 3, width, height);
+  if (image.complete && image.naturalWidth > 0) context.drawImage(image, x - width / 2, y - height + CHARACTER_SPRITE_FOOT_OFFSET, width, height);
   context.restore();
   drawSpeechBubble(player, x, y - height - 5);
 }
@@ -1465,6 +1468,13 @@ function update(delta) {
     }
     player.x += (player.targetX - player.x) * smoothing;
     player.y += (player.targetY - player.y) * smoothing;
+    if (player.insideHouse && player.targetInsideHouse === player.insideHouse) {
+      player.roomX += (player.targetRoomX - player.roomX) * smoothing;
+      player.roomY += (player.targetRoomY - player.roomY) * smoothing;
+    } else if (player.targetInsideHouse) {
+      player.roomX = player.targetRoomX;
+      player.roomY = player.targetRoomY;
+    }
     // `moving`/`direction` already come straight from the sender's network state
     // (spread in via ...payload.player when the state/snapshot arrived). Deriving
     // "moving" from the smoothed per-frame travel distance instead is noisy - the
@@ -1636,6 +1646,7 @@ function receive(connection, payload) {
   }
   if (payload.type === 'state') {
     const previous = remotePlayers.get(payload.player.id);
+    const enteredDifferentHouse = payload.player.insideHouse && payload.player.insideHouse !== previous?.insideHouse;
     const player = {
       ...payload.player,
       speech: previous?.speech ?? '',
@@ -1644,6 +1655,11 @@ function receive(connection, payload) {
       y: previous?.y ?? payload.player.y,
       targetX: payload.player.x,
       targetY: payload.player.y,
+      roomX: enteredDifferentHouse ? (payload.player.roomX ?? 0) : (previous?.roomX ?? payload.player.roomX ?? 0),
+      roomY: enteredDifferentHouse ? (payload.player.roomY ?? 0) : (previous?.roomY ?? payload.player.roomY ?? 0),
+      targetRoomX: payload.player.roomX ?? 0,
+      targetRoomY: payload.player.roomY ?? 0,
+      targetInsideHouse: payload.player.insideHouse || null,
       animationOffset: previous?.animationOffset ?? getPlayerAnimationOffset(payload.player.id || connection.peer),
       peerId: connection.peer,
     };
@@ -1686,7 +1702,7 @@ function receive(connection, payload) {
     payload.players.forEach((player) => {
     if (player.id !== localPlayer.id) {
       const existing = remotePlayers.get(player.id);
-      remotePlayers.set(player.id, { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, targetX: player.x, targetY: player.y, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
+      remotePlayers.set(player.id, { ...player, speech: existing?.speech ?? '', speechUntil: existing?.speechUntil ?? 0, roomX: existing?.roomX ?? player.roomX ?? 0, roomY: existing?.roomY ?? player.roomY ?? 0, targetX: player.x, targetY: player.y, targetRoomX: player.roomX ?? 0, targetRoomY: player.roomY ?? 0, targetInsideHouse: player.insideHouse || null, animationOffset: existing?.animationOffset ?? getPlayerAnimationOffset(player.id), peerId: connection.peer });
     }
     });
   }
@@ -1910,7 +1926,7 @@ loginAccount.addEventListener('click', () => authClient ? signInAccount() : ente
 createAccount.addEventListener('click', () => authClient ? createRemoteAccount() : createLocalAccount());
 saveNickname.addEventListener('click', saveAccountNickname);
 newAccountName.addEventListener('keydown', (event) => { if (event.key === 'Enter') (authClient ? createRemoteAccount() : createLocalAccount()); });
-eggReward.addEventListener('click', openEgg);
+eggToggle.addEventListener('click', openEgg);
 eggClose.addEventListener('click', closeEgg);
 eggModal.querySelector('.egg-modal-backdrop').addEventListener('click', closeEgg);
 skinClose.addEventListener('click', closeSkinLibrary);
